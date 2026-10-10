@@ -7,10 +7,8 @@ import com.proyecto.servicios.entity.client.Cuenta;
 import com.proyecto.servicios.entity.client.Domicilio;
 import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.ClienteYaRegistradoException;
-import com.proyecto.servicios.exception.CuentaNoEncontradaException;
 import com.proyecto.servicios.exception.GlobalExceptionHandler;
-import com.proyecto.servicios.model.onboarding.ClienteRegistroRequestDto;
-import com.proyecto.servicios.model.onboarding.DomicilioDto;
+import com.proyecto.servicios.model.onboarding.*;
 import com.proyecto.servicios.service.ClienteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -96,6 +94,10 @@ class ClienteControllerTest {
         return dto;
     }
 
+    private ClienteResponseDto buildResponseDtoMock() {
+        return new ClienteResponseDto("Juan", "juan.garcia@email.com", "3312345678", "GALJ900515HJCRPN09", "GALJ900515AB1");
+    }
+
     private Cliente buildClienteMock() {
         Cliente c = new Cliente();
         c.setId(1L);
@@ -139,33 +141,33 @@ class ClienteControllerTest {
     }
 
     // ─────────────────────────────────────────────
-    //  POST /clientes
+    //  POST /api/clientes
     // ─────────────────────────────────────────────
     @Nested
-    @DisplayName("POST /clientes")
+    @DisplayName("POST /api/clientes")
     class PostClienteTests {
 
         @Test
-        @DisplayName("Registro exitoso retorna 201 CREATED con el cliente")
+        @DisplayName("Registro exitoso retorna 201 CREATED con el cliente sin ID")
         void post_datosValidos_retorna201() throws Exception {
-            when(clienteService.registrarCliente(any())).thenReturn(buildClienteMock());
+            when(clienteService.registrar(any())).thenReturn(buildResponseDtoMock());
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(buildDtoValido())))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.id").value(1))
                     .andExpect(jsonPath("$.nombre").value("Juan"))
-                    .andExpect(jsonPath("$.activo").value(true));
+                    .andExpect(jsonPath("$.curp").value("GALJ900515HJCRPN09"))
+                    .andExpect(jsonPath("$.id").doesNotExist());
         }
 
         @Test
         @DisplayName("CURP duplicada retorna 409 CONFLICT")
         void post_curpDuplicada_retorna409() throws Exception {
-            when(clienteService.registrarCliente(any()))
+            when(clienteService.registrar(any()))
                     .thenThrow(new ClienteYaRegistradoException("CURP ya registrada"));
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(buildDtoValido())))
                     .andExpect(status().isConflict())
@@ -175,10 +177,10 @@ class ClienteControllerTest {
         @Test
         @DisplayName("RFC duplicado retorna 409 CONFLICT")
         void post_rfcDuplicado_retorna409() throws Exception {
-            when(clienteService.registrarCliente(any()))
+            when(clienteService.registrar(any()))
                     .thenThrow(new ClienteYaRegistradoException("RFC ya registrado"));
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(buildDtoValido())))
                     .andExpect(status().isConflict());
@@ -190,7 +192,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setNombre("");
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -203,7 +205,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setCurp("CURPINVALIDA");
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -216,7 +218,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setCorreo("correo-invalido");
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -229,7 +231,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setTelefonoMovil("331234567");
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -242,7 +244,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.getDomicilio().setCodigoPostal("4410");
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -255,7 +257,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setIngresoMensual(BigDecimal.ZERO);
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -265,7 +267,7 @@ class ClienteControllerTest {
         @Test
         @DisplayName("Body vacío retorna 400 con múltiples errores de validación")
         void post_bodyVacio_retorna400() throws Exception {
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isBadRequest())
@@ -278,7 +280,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setFechaNacimiento(LocalDate.now().plusDays(1));
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -291,7 +293,7 @@ class ClienteControllerTest {
             ClienteRegistroRequestDto dto = buildDtoValido();
             dto.setDomicilio(null);
 
-            mockMvc.perform(post("/clientes")
+            mockMvc.perform(post("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -300,10 +302,10 @@ class ClienteControllerTest {
     }
 
     // ─────────────────────────────────────────────
-    //  GET /clientes
+    //  GET /api/clientes (Consultas generales y por RequestBody)
     // ─────────────────────────────────────────────
     @Nested
-    @DisplayName("GET /clientes")
+    @DisplayName("GET /api/clientes")
     class GetClientesTests {
 
         @Test
@@ -311,7 +313,7 @@ class ClienteControllerTest {
         void get_todos_retorna200() throws Exception {
             when(clienteService.consultarTodosClientes()).thenReturn(List.of(buildClienteMock()));
 
-            mockMvc.perform(get("/clientes"))
+            mockMvc.perform(get("/api/clientes"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(1)))
                     .andExpect(jsonPath("$[0].nombre").value("Juan"));
@@ -322,98 +324,57 @@ class ClienteControllerTest {
         void get_todos_bdVacia_retorna200ListaVacia() throws Exception {
             when(clienteService.consultarTodosClientes()).thenReturn(List.of());
 
-            mockMvc.perform(get("/clientes"))
+            mockMvc.perform(get("/api/clientes"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(0)));
         }
 
         @Test
-        @DisplayName("GET /clientes/{id} existente retorna 200")
-        void get_porId_existente_retorna200() throws Exception {
-            when(clienteService.consultarClientePorId(1L)).thenReturn(buildClienteMock());
+        @DisplayName("GET /api/clientes/buscar existente mediante RequestBody retorna 200 sin ID")
+        void get_porCurpRfc_existente_retorna200() throws Exception {
+            when(clienteService.buscarPorCurpRfc("GALJ900515HJCRPN09"))
+                    .thenReturn(buildResponseDtoMock());
 
-            mockMvc.perform(get("/clientes/1"))
+            ClienteConsultaRequestDto request = new ClienteConsultaRequestDto();
+            request.setIdentificadorFiscal("GALJ900515HJCRPN09");
+
+            mockMvc.perform(get("/api/clientes/buscar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(1));
+                    .andExpect(jsonPath("$.curp").value("GALJ900515HJCRPN09"))
+                    .andExpect(jsonPath("$.id").doesNotExist());
         }
 
         @Test
-        @DisplayName("GET /clientes/{id} inexistente retorna 404")
-        void get_porId_inexistente_retorna404() throws Exception {
-            when(clienteService.consultarClientePorId(99L))
+        @DisplayName("GET /api/clientes/buscar inexistente mediante RequestBody retorna 404")
+        void get_porCurpRfc_inexistente_retorna404() throws Exception {
+            when(clienteService.buscarPorCurpRfc("INVALIDA"))
                     .thenThrow(new ClienteNoEncontradoException("No encontrado"));
 
-            mockMvc.perform(get("/clientes/99"))
+            ClienteConsultaRequestDto request = new ClienteConsultaRequestDto();
+            request.setIdentificadorFiscal("INVALIDA");
+
+            mockMvc.perform(get("/api/clientes/buscar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isNotFound());
         }
 
         @Test
-        @DisplayName("GET /clientes/curp/{curp} retorna 200 con cliente")
-        void get_porCurp_retorna200() throws Exception {
-            when(clienteService.consultarClientePorCurp("GALJ900515HJCRPN09"))
-                    .thenReturn(buildClienteMock());
-
-            mockMvc.perform(get("/clientes/curp/GALJ900515HJCRPN09"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.curp").value("GALJ900515HJCRPN09"));
-        }
-
-        @Test
-        @DisplayName("GET /clientes/curp/{curp} inexistente retorna 404")
-        void get_porCurp_inexistente_retorna404() throws Exception {
-            when(clienteService.consultarClientePorCurp("INVALIDA"))
-                    .thenThrow(new ClienteNoEncontradoException("No encontrado"));
-
-            mockMvc.perform(get("/clientes/curp/INVALIDA"))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        @DisplayName("GET /clientes/rfc/{rfc} retorna 200 con cliente")
-        void get_porRfc_retorna200() throws Exception {
-            when(clienteService.consultarClientePorRfc("GALJ900515AB1"))
-                    .thenReturn(buildClienteMock());
-
-            mockMvc.perform(get("/clientes/rfc/GALJ900515AB1"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.rfc").value("GALJ900515AB1"));
-        }
-
-        @Test
-        @DisplayName("GET /clientes/rfc/{rfc} inexistente retorna 404")
-        void get_porRfc_inexistente_retorna404() throws Exception {
-            when(clienteService.consultarClientePorRfc("RFCNOVALIDO"))
-                    .thenThrow(new ClienteNoEncontradoException("No encontrado"));
-
-            mockMvc.perform(get("/clientes/rfc/RFCNOVALIDO"))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        @DisplayName("GET /clientes/correo/{correo} retorna 200 con cliente")
-        void get_porCorreo_retorna200() throws Exception {
-            when(clienteService.consultarClientePorCorreo("juan.garcia@email.com"))
-                    .thenReturn(buildClienteMock());
-
-            mockMvc.perform(get("/clientes/correo/juan.garcia@email.com"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.correo").value("juan.garcia@email.com"));
-        }
-
-        @Test
-        @DisplayName("GET /clientes/activos retorna solo clientes activos")
+        @DisplayName("GET /api/clientes/activos retorna solo clientes activos")
         void get_activos_retornaActivos() throws Exception {
             Cliente activo = buildClienteMock();
             activo.setActivo(true);
             when(clienteService.consultarClientesActivos()).thenReturn(List.of(activo));
 
-            mockMvc.perform(get("/clientes/activos"))
+            mockMvc.perform(get("/api/clientes/activos"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].activo").value(true));
         }
 
         @Test
-        @DisplayName("GET /clientes/cuentas/activas retorna cuentas activas")
+        @DisplayName("GET /api/clientes/cuentas/activas retorna cuentas activas")
         void get_cuentasActivas_retornaCuentas() throws Exception {
             Cuenta activa = new Cuenta();
             activa.setId(1L);
@@ -423,18 +384,18 @@ class ClienteControllerTest {
             activa.setCreatedAt(LocalDateTime.now());
             when(clienteService.consultarCuentasActivas()).thenReturn(List.of(activa));
 
-            mockMvc.perform(get("/clientes/cuentas/activas"))
+            mockMvc.perform(get("/api/clientes/cuentas/activas"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].estatus").value("ACTIVA"));
         }
 
         @Test
-        @DisplayName("GET /clientes/rango-fechas con parámetros válidos retorna 200")
+        @DisplayName("GET /api/clientes/rango-fechas con parámetros válidos retorna 200")
         void get_rangoFechas_retorna200() throws Exception {
             when(clienteService.consultarClientesPorRangoFechas(any(), any()))
                     .thenReturn(List.of(buildClienteMock()));
 
-            mockMvc.perform(get("/clientes/rango-fechas")
+            mockMvc.perform(get("/api/clientes/rango-fechas")
                             .param("inicio", "2025-01-01")
                             .param("fin", "2025-12-31"))
                     .andExpect(status().isOk())
@@ -443,48 +404,58 @@ class ClienteControllerTest {
     }
 
     // ─────────────────────────────────────────────
-    //  PUT /clientes/{id}
+    //  PUT /api/clientes (Actualizar mediante CURP o RFC en RequestBody)
     // ─────────────────────────────────────────────
     @Nested
-    @DisplayName("PUT /clientes/{id}")
+    @DisplayName("PUT /api/clientes")
     class PutClienteTests {
 
         @Test
-        @DisplayName("Actualización exitosa retorna 200 con cliente actualizado")
+        @DisplayName("Actualización exitosa retorna 200 con cliente actualizado sin ID")
         void put_datosValidos_retorna200() throws Exception {
-            Cliente actualizado = buildClienteMock();
-            actualizado.setNombre("Carlos");
-            when(clienteService.actualizarCliente(eq(1L), any())).thenReturn(actualizado);
+            ClienteResponseDto actualizado = new ClienteResponseDto("Carlos", "carlos@email.com", "3312345678", "GALJ900515HJCRPN09", "GALJ900515AB1");
+            when(clienteService.actualizarPorCurpRfc(any())).thenReturn(actualizado);
 
-            ClienteRegistroRequestDto dto = buildDtoValido();
+            ClienteActualizarRequestDto dto = new ClienteActualizarRequestDto();
+            dto.setIdentificadorFiscalBusqueda("GALJ900515HJCRPN09");
             dto.setNombre("Carlos");
+            dto.setCorreo("carlos@email.com");
+            dto.setTelefono("3312345678");
 
-            mockMvc.perform(put("/clientes/1")
+            mockMvc.perform(put("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.nombre").value("Carlos"));
+                    .andExpect(jsonPath("$.nombre").value("Carlos"))
+                    .andExpect(jsonPath("$.id").doesNotExist());
         }
 
         @Test
-        @DisplayName("Actualización de cliente inexistente retorna 404")
+        @DisplayName("Actualización de cliente con CURP o RFC inexistente retorna 404")
         void put_clienteInexistente_retorna404() throws Exception {
-            when(clienteService.actualizarCliente(eq(99L), any()))
+            when(clienteService.actualizarPorCurpRfc(any()))
                     .thenThrow(new ClienteNoEncontradoException("No encontrado"));
 
-            mockMvc.perform(put("/clientes/99")
+            ClienteActualizarRequestDto dto = new ClienteActualizarRequestDto();
+            dto.setIdentificadorFiscalBusqueda("NOEXISTE");
+            dto.setNombre("Carlos");
+            dto.setCorreo("carlos@email.com");
+            dto.setTelefono("3312345678");
+
+            mockMvc.perform(put("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(buildDtoValido())))
+                            .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isNotFound());
         }
 
         @Test
         @DisplayName("Actualización con datos inválidos retorna 400")
         void put_datosInvalidos_retorna400() throws Exception {
-            ClienteRegistroRequestDto dto = buildDtoValido();
+            ClienteActualizarRequestDto dto = new ClienteActualizarRequestDto();
+            dto.setIdentificadorFiscalBusqueda("GALJ900515HJCRPN09");
             dto.setNombre(""); // nombre vacío — inválido
 
-            mockMvc.perform(put("/clientes/1")
+            mockMvc.perform(put("/api/clientes")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -492,30 +463,40 @@ class ClienteControllerTest {
     }
 
     // ─────────────────────────────────────────────
-    //  DELETE /clientes/{id} (baja lógica)
+    //  DELETE /api/clientes (Baja mediante CURP o RFC en RequestBody)
     // ─────────────────────────────────────────────
     @Nested
-    @DisplayName("DELETE /clientes/{id} (baja lógica)")
+    @DisplayName("DELETE /api/clientes")
     class DeleteClienteTests {
 
         @Test
-        @DisplayName("Baja lógica exitosa retorna 204 NO CONTENT")
+        @DisplayName("Baja exitosa retorna 204 NO CONTENT")
         void delete_existente_retorna204() throws Exception {
-            doNothing().when(clienteService).bajaLogicaCliente(1L);
+            doNothing().when(clienteService).eliminarPorCurpRfc("GALJ900515HJCRPN09");
 
-            mockMvc.perform(delete("/clientes/1"))
+            ClienteEliminarRequestDto request = new ClienteEliminarRequestDto();
+            request.setIdentificadorFiscal("GALJ900515HJCRPN09");
+
+            mockMvc.perform(delete("/api/clientes")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isNoContent());
 
-            verify(clienteService).bajaLogicaCliente(1L);
+            verify(clienteService).eliminarPorCurpRfc("GALJ900515HJCRPN09");
         }
 
         @Test
-        @DisplayName("Baja lógica de cliente inexistente retorna 404")
+        @DisplayName("Baja de cliente inexistente retorna 404")
         void delete_inexistente_retorna404() throws Exception {
             doThrow(new ClienteNoEncontradoException("No encontrado"))
-                    .when(clienteService).bajaLogicaCliente(99L);
+                    .when(clienteService).eliminarPorCurpRfc("NOEXISTE");
 
-            mockMvc.perform(delete("/clientes/99"))
+            ClienteEliminarRequestDto request = new ClienteEliminarRequestDto();
+            request.setIdentificadorFiscal("NOEXISTE");
+
+            mockMvc.perform(delete("/api/clientes")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isNotFound());
         }
     }
