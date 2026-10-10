@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.List;
 
@@ -133,7 +134,7 @@ public class ClienteServiceImpl implements ClienteService {
     }
 
     @Override
-    public List<Cliente> consultarClientesPorRangoFechas(LocalDate inicio, LocalDate fin) {
+    public List<Cliente> consultarClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin) {
         return clienteRepository.findClientesByRangoFechas(inicio, fin);
     }
 
@@ -185,8 +186,9 @@ public class ClienteServiceImpl implements ClienteService {
     private String generarNumeroCuentaUnico() {
         String numero;
         do {
-            numero = String.format("%010d", (long) (Math.random() * 1_000_000_0000L));
+            long valor = (long) (Math.random() * 10_000_000_000L);
+            numero = String.format("%010d", valor);
         } while (cuentaRepository.existsByNumeroCuenta(numero));
         return numero;
     }
-}
+}

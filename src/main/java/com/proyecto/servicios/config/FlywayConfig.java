@@ -22,8 +22,16 @@ public class FlywayConfig {
     @Value("${spring.flyway.schemas:public}")
     private String schema;
 
+    @Value("${spring.flyway.enabled:true}")
+    private boolean flywayEnabled;
+
     @Bean(name = "flyway")
     public Flyway flyway(@Qualifier("sfDatasource") DataSource dataSource) {
+        if (!flywayEnabled) {
+            log.info("Flyway está desactivado por configuración.");
+            return null;
+        }
+
         log.info("Iniciando migraciones Flyway en schema '{}'", schema);
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)

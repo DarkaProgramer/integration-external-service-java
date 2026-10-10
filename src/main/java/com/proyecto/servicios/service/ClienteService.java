@@ -4,7 +4,7 @@ import com.proyecto.servicios.entity.client.Cliente;
 import com.proyecto.servicios.entity.client.Cuenta;
 import com.proyecto.servicios.model.onboarding.ClienteRegistroRequestDto;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ClienteService {
@@ -17,7 +17,7 @@ public interface ClienteService {
     Cuenta consultarCuentaPorNumero(String numeroCuenta);
     List<Cliente> consultarClientesActivos();
     List<Cuenta> consultarCuentasActivas();
-    List<Cliente> consultarClientesPorRangoFechas(LocalDate inicio, LocalDate fin);
+    List<Cliente> consultarClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin);
     Cliente actualizarCliente(Long id, ClienteRegistroRequestDto request);
     void bajaLogicaCliente(Long id);
 }

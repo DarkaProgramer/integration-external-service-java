@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,5 +29,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     List<Cliente> findByActivoTrue();
 
     @Query("SELECT c FROM Cliente c WHERE c.createdAt BETWEEN :inicio AND :fin")
-    List<Cliente> findClientesByRangoFechas(@Param("inicio") LocalDate inicio, @Param("fin") LocalDate fin);
+    List<Cliente> findClientesByRangoFechas(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin);
 }

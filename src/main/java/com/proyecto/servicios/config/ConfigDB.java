@@ -21,14 +21,12 @@ import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 @Configuration
 @EnableTransactionManagement
 @EnableJpaRepositories(
         basePackages = {
-                "com.proyecto.servicios.repositorys.sf",
-                "com.proyecto.servicios.repositorys.gestopago"
+                "com.proyecto.servicios.repositorys"
         },
         transactionManagerRef = "sfTransactionManager",
         entityManagerFactoryRef = "sfEntityManagerFactory"
@@ -53,7 +51,7 @@ public class ConfigDB {
             config.setPoolName("sfDatasource");
 
         }catch (Exception e){
-            log.error("Ha ocurrido un error en la conexcion a base de datos, a causa de:",e);
+            log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:",e);
             return null;
         }
         return new HikariDataSource(config);
@@ -64,32 +62,33 @@ public class ConfigDB {
     public LocalContainerEntityManagerFactoryBean sfEntityManagerFactory(){
         LocalContainerEntityManagerFactoryBean em= new LocalContainerEntityManagerFactoryBean();
         try{
-          em.setDataSource(sfDatasource());
-          em.setPackagesToScan(
-                  "com.proyecto.servicios.entity.sf",
-                  "com.proyecto.servicios.entity.gestopago"
-          );
-          em.setPersistenceUnitName("sfDatasource");
+            em.setDataSource(sfDatasource());
+            em.setPackagesToScan(
+                    "com.proyecto.servicios.entity",
+                    "com.proyecto.servicios.entity.client",
+                    "com.proyecto.servicios.entity.sf",
+                    "com.proyecto.servicios.entity.gestopago"
+            );
+            em.setPersistenceUnitName("sfDatasource");
             HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
             em.setJpaVendorAdapter(vendorAdapter);
-          Map<String, Object> properties=new HashMap<>();
-          properties.put("hibernate.hbm2ddl.auto", "none");
+            Map<String, Object> properties=new HashMap<>();
+            // Cambiado a 'update' para que cree la tabla gestopago_tokens automáticamente
+            properties.put("hibernate.hbm2ddl.auto", "update");
             properties.put("hibernate.show-sql", false);
-            properties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+            properties.put("hibernate.dialect", "org.hibernate.dialect.MySQLDialect");
             properties.put("jakarta.persistence.query.timeout", 600000);
-
+            em.setJpaPropertyMap(properties);
 
         } catch (Exception e) {
             log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:",e);
             return null;
-
         }
         return em;
     }
- @Bean(name="sfTransactionManager")
- public PlatformTransactionManager sfTransactionManager(@Qualifier("sfEntityManagerFactory") EntityManagerFactory sfEntityManagerFactory){
+
+    @Bean(name="sfTransactionManager")
+    public PlatformTransactionManager sfTransactionManager(@Qualifier("sfEntityManagerFactory") EntityManagerFactory sfEntityManagerFactory){
         return new JpaTransactionManager(sfEntityManagerFactory);
-
- }
-
+    }
 }
