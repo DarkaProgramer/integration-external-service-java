@@ -37,9 +37,16 @@ public class ConfigDB {
 
     @Bean(name="sfDatasource")
     public DataSource sfDatasource(){
-        HikariConfig config=new HikariConfig();
+        HikariConfig config = new HikariConfig();
         try{
-            config.setJdbcUrl(env.getProperty("spring.datasource.url"));
+            String url = env.getProperty("spring.datasource.url");
+
+            // Corrige automáticamente si la URL viene con el formato de Railway ("mysql://")
+            if (url != null && url.startsWith("mysql://")) {
+                url = "jdbc:" + url;
+            }
+
+            config.setJdbcUrl(url);
             config.setPassword(env.getProperty("spring.datasource.password"));
             config.setUsername(env.getProperty("spring.datasource.username"));
             config.setMaximumPoolSize(10);
@@ -51,7 +58,7 @@ public class ConfigDB {
             config.setPoolName("sfDatasource");
 
         }catch (Exception e){
-            log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:",e);
+            log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:", e);
             return null;
         }
         return new HikariDataSource(config);
@@ -60,7 +67,7 @@ public class ConfigDB {
     @Bean(name="sfEntityManagerFactory")
     @DependsOn("flyway")
     public LocalContainerEntityManagerFactoryBean sfEntityManagerFactory(){
-        LocalContainerEntityManagerFactoryBean em= new LocalContainerEntityManagerFactoryBean();
+        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         try{
             em.setDataSource(sfDatasource());
             em.setPackagesToScan(
@@ -72,8 +79,7 @@ public class ConfigDB {
             em.setPersistenceUnitName("sfDatasource");
             HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
             em.setJpaVendorAdapter(vendorAdapter);
-            Map<String, Object> properties=new HashMap<>();
-            // Cambiado a 'update' para que cree la tabla gestopago_tokens automáticamente
+            Map<String, Object> properties = new HashMap<>();
             properties.put("hibernate.hbm2ddl.auto", "update");
             properties.put("hibernate.show-sql", false);
             properties.put("hibernate.dialect", "org.hibernate.dialect.MySQLDialect");
@@ -81,7 +87,7 @@ public class ConfigDB {
             em.setJpaPropertyMap(properties);
 
         } catch (Exception e) {
-            log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:",e);
+            log.error("Ha ocurrido un error en la conexion a base de datos, a causa de:", e);
             return null;
         }
         return em;

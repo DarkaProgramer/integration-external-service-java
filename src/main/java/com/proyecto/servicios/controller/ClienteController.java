@@ -65,9 +65,14 @@ public class ClienteController {
 
     @GetMapping("/rango-fechas")
     public ResponseEntity<List<Cliente>> consultarPorRangoFechas(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
-        return ResponseEntity.ok(clienteService.consultarClientesPorRangoFechas(inicio, fin));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin) {
+
+        // Convertimos LocalDate a LocalDateTime para que coincida con el servicio
+        LocalDateTime inicioDateTime = inicio.atStartOfDay();
+        LocalDateTime finDateTime = fin.atTime(23, 59, 59);
+
+        return ResponseEntity.ok(clienteService.consultarClientesPorRangoFechas(inicioDateTime, finDateTime));
     }
 
     @PutMapping("/{id}")

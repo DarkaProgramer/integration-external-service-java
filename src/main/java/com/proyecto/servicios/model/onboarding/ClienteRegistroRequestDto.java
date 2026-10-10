@@ -53,7 +53,7 @@ public class ClienteRegistroRequestDto {
 
     // --- Datos de Contacto ---
     @NotBlank(message = "El correo electrónico es obligatorio")
-    @Email(message = "Debe proporcionar un correo electrónico válido")
+    @Email(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "Debe proporcionar un correo electrónico válido")
     @Size(max = 100, message = "El correo no puede exceder los 100 caracteres")
     private String correo;
 
