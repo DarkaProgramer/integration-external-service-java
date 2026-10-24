@@ -2,8 +2,11 @@ package com.proyecto.servicios.entity.client;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,13 +14,17 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "clientes")
-@Data
+@Getter
+@Setter
+@ToString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Cliente {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false, length = 50)
@@ -80,9 +87,28 @@ public class Cliente {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // Se excluyen de toString para evitar recursión infinita en la relación bidireccional
+    @ToString.Exclude
     @OneToOne(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     private Domicilio domicilio;
 
+    @ToString.Exclude
     @OneToOne(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     private Cuenta cuenta;
+
+    // Campos controlados por el servidor: se asignan aquí y nunca desde la petición
+    @PrePersist
+    void alCrear() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (activo == null) {
+            activo = true;
+        }
+    }
+
+    @PreUpdate
+    void alActualizar() {
+        updatedAt = LocalDateTime.now();
+    }
 }
