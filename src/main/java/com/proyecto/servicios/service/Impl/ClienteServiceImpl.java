@@ -1,41 +1,50 @@
 package com.proyecto.servicios.service.Impl;
 
 import com.proyecto.servicios.entity.client.Cliente;
-import com.proyecto.servicios.entity.client.Domicilio;
 import com.proyecto.servicios.entity.client.Cuenta;
 import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.ClienteYaRegistradoException;
-import com.proyecto.servicios.exception.CuentaNoEncontradaException;
+import com.proyecto.servicios.exception.CorreoYaRegistradoException;
+import com.proyecto.servicios.exception.ReglaNegocioException;
+import com.proyecto.servicios.mapper.ClienteMapper;
+import com.proyecto.servicios.model.onboarding.ClienteActualizarRequestDto;
+import com.proyecto.servicios.model.onboarding.ClienteConsultaRequestDto;
 import com.proyecto.servicios.model.onboarding.ClienteRegistroRequestDto;
+import com.proyecto.servicios.model.onboarding.ClienteResponseDto;
 import com.proyecto.servicios.repositorys.ClienteRepository;
+import com.proyecto.servicios.repositorys.ClienteSpecifications;
 import com.proyecto.servicios.repositorys.CuentaRepository;
 import com.proyecto.servicios.service.ClienteService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class ClienteServiceImpl implements ClienteService {
 
-    @Autowired
-    private ClienteRepository clienteRepository;
+    static final int EDAD_MINIMA = 18;
+    static final BigDecimal SALDO_INICIAL = new BigDecimal("1000.00");
+    static final String CUENTA_ACTIVA = "ACTIVA";
+    static final String CUENTA_INACTIVA = "INACTIVA";
 
-    @Autowired
-    private CuentaRepository cuentaRepository;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final ClienteRepository clienteRepository;
+    private final CuentaRepository cuentaRepository;
+    private final ClienteMapper clienteMapper;
 
     @Override
     @Transactional
-    public Cliente registrarCliente(ClienteRegistroRequestDto dto) {
-        int edad = Period.between(dto.getFechaNacimiento(), LocalDate.now()).getYears();
-        if (edad < 18) {
-            throw new IllegalArgumentException("El cliente debe ser mayor de edad (18 años o más)");
-        }
+    public ClienteResponseDto registrar(ClienteRegistroRequestDto dto) {
+        validarMayorDeEdad(dto.getFechaNacimiento());
 
         if (clienteRepository.existsByCurp(dto.getCurp())) {
             throw new ClienteYaRegistradoException("Ya existe un cliente registrado con la CURP: " + dto.getCurp());
@@ -44,151 +53,82 @@ public class ClienteServiceImpl implements ClienteService {
             throw new ClienteYaRegistradoException("Ya existe un cliente registrado con el RFC: " + dto.getRfc());
         }
         if (clienteRepository.existsByCorreo(dto.getCorreo())) {
-            throw new ClienteYaRegistradoException("Ya existe un cliente registrado con el correo: " + dto.getCorreo());
+            throw new CorreoYaRegistradoException("El correo " + dto.getCorreo() + " ya está registrado por otro cliente");
         }
 
-        Cliente cliente = new Cliente();
-        cliente.setNombre(dto.getNombre());
-        cliente.setSegundoNombre(dto.getSegundoNombre());
-        cliente.setApellidoPaterno(dto.getApellidoPaterno());
-        cliente.setApellidoMaterno(dto.getApellidoMaterno());
-        cliente.setFechaNacimiento(dto.getFechaNacimiento());
-        cliente.setCurp(dto.getCurp());
-        cliente.setRfc(dto.getRfc());
-        cliente.setSexo(dto.getSexo());
-        cliente.setNacionalidad(dto.getNacionalidad());
-        cliente.setEstadoCivil(dto.getEstadoCivil());
-        cliente.setCorreo(dto.getCorreo());
-        cliente.setTelefonoMovil(dto.getTelefonoMovil());
-        cliente.setTelefonoAlternativo(dto.getTelefonoAlternativo());
-        cliente.setOcupacion(dto.getOcupacion());
-        cliente.setEmpresa(dto.getEmpresa());
-        cliente.setIngresoMensual(dto.getIngresoMensual());
+        Cliente cliente = clienteMapper.toEntity(dto);
+        // Campos controlados por el servidor
         cliente.setActivo(true);
-
-        Domicilio domicilio = new Domicilio();
-        domicilio.setCalle(dto.getDomicilio().getCalle());
-        domicilio.setNumeroExterior(dto.getDomicilio().getNumeroExterior());
-        domicilio.setNumeroInterior(dto.getDomicilio().getNumeroInterior());
-        domicilio.setColonia(dto.getDomicilio().getColonia());
-        domicilio.setMunicipio(dto.getDomicilio().getMunicipio());
-        domicilio.setEstado(dto.getDomicilio().getEstado());
-        domicilio.setCodigoPostal(dto.getDomicilio().getCodigoPostal());
-        domicilio.setPais(dto.getDomicilio().getPais());
-        domicilio.setCliente(cliente);
-        cliente.setDomicilio(domicilio);
 
         Cuenta cuenta = new Cuenta();
         cuenta.setNumeroCuenta(generarNumeroCuentaUnico());
-        cuenta.setSaldo(BigDecimal.valueOf(1000.00));
-        cuenta.setEstatus("ACTIVA");
+        cuenta.setSaldo(SALDO_INICIAL);
+        cuenta.setEstatus(CUENTA_ACTIVA);
         cuenta.setCliente(cliente);
         cliente.setCuenta(cuenta);
 
-        return clienteRepository.save(cliente);
+        return clienteMapper.toResponse(clienteRepository.save(cliente));
     }
 
     @Override
-    public List<Cliente> consultarTodosClientes() {
-        return clienteRepository.findAll();
-    }
-
-    @Override
-    public Cliente consultarClientePorId(Long id) {
-        return clienteRepository.findById(id)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con ID: " + id));
-    }
-
-    @Override
-    public Cliente consultarClientePorCurp(String curp) {
-        return clienteRepository.findByCurp(curp)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con CURP: " + curp));
-    }
-
-    @Override
-    public Cliente consultarClientePorRfc(String rfc) {
-        return clienteRepository.findByRfc(rfc)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con RFC: " + rfc));
-    }
-
-    @Override
-    public Cliente consultarClientePorCorreo(String correo) {
-        return clienteRepository.findByCorreo(correo)
-                .orElseThrow(() -> new ClienteNoEncontradoException("Cliente no encontrado con correo: " + correo));
-    }
-
-    @Override
-    public Cuenta consultarCuentaPorNumero(String numeroCuenta) {
-        return cuentaRepository.findByNumeroCuenta(numeroCuenta)
-                .orElseThrow(() -> new CuentaNoEncontradaException("Cuenta bancaria no encontrada: " + numeroCuenta));
-    }
-
-    @Override
-    public List<Cliente> consultarClientesActivos() {
-        return clienteRepository.findByActivoTrue();
-    }
-
-    @Override
-    public List<Cuenta> consultarCuentasActivas() {
-        return cuentaRepository.findByEstatus("ACTIVA");
-    }
-
-    @Override
-    public List<Cliente> consultarClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin) {
-        return clienteRepository.findClientesByRangoFechas(inicio, fin);
+    @Transactional(readOnly = true)
+    public List<ClienteResponseDto> buscar(ClienteConsultaRequestDto filtros) {
+        return clienteRepository.findAll(ClienteSpecifications.conFiltros(filtros), Sort.by("id"))
+                .stream()
+                .map(clienteMapper::toResponse)
+                .toList();
     }
 
     @Override
     @Transactional
-    public Cliente actualizarCliente(Long id, ClienteRegistroRequestDto dto) {
-        Cliente cliente = consultarClientePorId(id);
+    public ClienteResponseDto actualizar(ClienteActualizarRequestDto dto) {
+        Cliente cliente = obtenerPorIdentificador(dto.getIdentificadorFiscal());
 
-        cliente.setNombre(dto.getNombre());
-        cliente.setSegundoNombre(dto.getSegundoNombre());
-        cliente.setApellidoPaterno(dto.getApellidoPaterno());
-        cliente.setApellidoMaterno(dto.getApellidoMaterno());
-        cliente.setSexo(dto.getSexo());
-        cliente.setNacionalidad(dto.getNacionalidad());
-        cliente.setEstadoCivil(dto.getEstadoCivil());
-        cliente.setCorreo(dto.getCorreo());
-        cliente.setTelefonoMovil(dto.getTelefonoMovil());
-        cliente.setTelefonoAlternativo(dto.getTelefonoAlternativo());
-        cliente.setOcupacion(dto.getOcupacion());
-        cliente.setEmpresa(dto.getEmpresa());
-        cliente.setIngresoMensual(dto.getIngresoMensual());
-
-        if (cliente.getDomicilio() != null && dto.getDomicilio() != null) {
-            Domicilio dom = cliente.getDomicilio();
-            dom.setCalle(dto.getDomicilio().getCalle());
-            dom.setNumeroExterior(dto.getDomicilio().getNumeroExterior());
-            dom.setNumeroInterior(dto.getDomicilio().getNumeroInterior());
-            dom.setColonia(dto.getDomicilio().getColonia());
-            dom.setMunicipio(dto.getDomicilio().getMunicipio());
-            dom.setEstado(dto.getDomicilio().getEstado());
-            dom.setCodigoPostal(dto.getDomicilio().getCodigoPostal());
-            dom.setPais(dto.getDomicilio().getPais());
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new ReglaNegocioException("No es posible actualizar un cliente que fue dado de baja");
+        }
+        if (dto.getCorreo() != null && clienteRepository.existsByCorreoAndIdNot(dto.getCorreo(), cliente.getId())) {
+            throw new CorreoYaRegistradoException("El correo " + dto.getCorreo() + " ya está registrado por otro cliente");
         }
 
-        return clienteRepository.save(cliente);
+        clienteMapper.actualizarEntidad(dto, cliente);
+        return clienteMapper.toResponse(clienteRepository.save(cliente));
     }
 
     @Override
     @Transactional
-    public void bajaLogicaCliente(Long id) {
-        Cliente cliente = consultarClientePorId(id);
+    public ClienteResponseDto darDeBaja(String identificadorFiscal) {
+        Cliente cliente = obtenerPorIdentificador(identificadorFiscal);
+
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new ReglaNegocioException("El cliente con identificador " + identificadorFiscal + " ya se encuentra dado de baja");
+        }
+
         cliente.setActivo(false);
         if (cliente.getCuenta() != null) {
-            cliente.getCuenta().setEstatus("INACTIVA");
+            cliente.getCuenta().setEstatus(CUENTA_INACTIVA);
         }
-        clienteRepository.save(cliente);
+        return clienteMapper.toResponse(clienteRepository.save(cliente));
+    }
+
+    private Cliente obtenerPorIdentificador(String identificadorFiscal) {
+        return clienteRepository.findFirstByCurpOrRfc(identificadorFiscal, identificadorFiscal)
+                .orElseThrow(() -> new ClienteNoEncontradoException(
+                        "No existe un cliente con la CURP o RFC: " + identificadorFiscal));
+    }
+
+    private void validarMayorDeEdad(LocalDate fechaNacimiento) {
+        int edad = Period.between(fechaNacimiento, LocalDate.now()).getYears();
+        if (edad < EDAD_MINIMA) {
+            throw new ReglaNegocioException("El cliente debe ser mayor de edad (" + EDAD_MINIMA + " años o más)");
+        }
     }
 
     private String generarNumeroCuentaUnico() {
         String numero;
         do {
-            long valor = (long) (Math.random() * 10_000_000_000L);
-            numero = String.format("%010d", valor);
+            numero = String.format("%010d", (long) (RANDOM.nextDouble() * 10_000_000_000L));
         } while (cuentaRepository.existsByNumeroCuenta(numero));
         return numero;
     }
-}
+}

@@ -1,23 +1,21 @@
 package com.proyecto.servicios.service;
 
-import com.proyecto.servicios.entity.client.Cliente;
-import com.proyecto.servicios.entity.client.Cuenta;
+import com.proyecto.servicios.model.onboarding.ClienteActualizarRequestDto;
+import com.proyecto.servicios.model.onboarding.ClienteConsultaRequestDto;
 import com.proyecto.servicios.model.onboarding.ClienteRegistroRequestDto;
+import com.proyecto.servicios.model.onboarding.ClienteResponseDto;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ClienteService {
-    Cliente registrarCliente(ClienteRegistroRequestDto request);
-    List<Cliente> consultarTodosClientes();
-    Cliente consultarClientePorId(Long id);
-    Cliente consultarClientePorCurp(String curp);
-    Cliente consultarClientePorRfc(String rfc);
-    Cliente consultarClientePorCorreo(String correo);
-    Cuenta consultarCuentaPorNumero(String numeroCuenta);
-    List<Cliente> consultarClientesActivos();
-    List<Cuenta> consultarCuentasActivas();
-    List<Cliente> consultarClientesPorRangoFechas(LocalDateTime inicio, LocalDateTime fin);
-    Cliente actualizarCliente(Long id, ClienteRegistroRequestDto request);
-    void bajaLogicaCliente(Long id);
+
+    ClienteResponseDto registrar(ClienteRegistroRequestDto request);
+
+    /** Búsqueda dinámica: combina todos los filtros informados en la petición. */
+    List<ClienteResponseDto> buscar(ClienteConsultaRequestDto filtros);
+
+    ClienteResponseDto actualizar(ClienteActualizarRequestDto request);
+
+    /** Baja lógica del cliente identificado por CURP o RFC. */
+    ClienteResponseDto darDeBaja(String identificadorFiscal);
 }
