@@ -3,6 +3,7 @@ package com.proyecto.servicios.repositorys;
 import com.proyecto.servicios.entity.client.Cliente;
 import com.proyecto.servicios.entity.client.Cuenta;
 import com.proyecto.servicios.entity.client.Domicilio;
+import com.proyecto.servicios.model.onboarding.ClienteConsultaRequestDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -195,61 +196,83 @@ class ClienteRepositoryIntegrationTest {
     }
 
     // ─────────────────────────────────────────────
-    //  4. Clientes activos
+    //  4. Búsqueda dinámica (Specification)
     // ─────────────────────────────────────────────
     @Nested
-    @DisplayName("Clientes activos")
-    class ClientesActivosTests {
+    @DisplayName("Búsqueda dinámica con filtros combinados")
+    class BusquedaDinamicaTests {
+
+        private List<Cliente> buscar(ClienteConsultaRequestDto filtros) {
+            return clienteRepository.findAll(ClienteSpecifications.conFiltros(filtros));
+        }
 
         @Test
-        @DisplayName("findByActivoTrue retorna solo los clientes activos")
-        void findByActivoTrue_retornaSoloActivos() {
-            // Crear uno inactivo
-            Cliente inactivo = crearCliente(
-                    "BBBB900101HDFCCC01",
-                    "BBBB900101XY1",
-                    "inactivo@test.com",
-                    "2000000002"
-            );
+        @DisplayName("Sin filtros devuelve todos los clientes")
+        void sinFiltros_devuelveTodos() {
+            crearCliente("BBBB900101HDFCCC01", "BBBB900101XY1", "otro@test.com", "2000000002");
+            assertThat(buscar(new ClienteConsultaRequestDto())).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("Nombre parcial sin distinguir mayúsculas")
+        void nombreParcial() {
+            ClienteConsultaRequestDto f = new ClienteConsultaRequestDto();
+            f.setNombre("tES");
+            assertThat(buscar(f)).extracting(Cliente::getCurp).containsExactly("AAAA900101HDFBBB01");
+        }
+
+        @Test
+        @DisplayName("Filtro activo=true excluye clientes dados de baja")
+        void soloActivos() {
+            Cliente inactivo = crearCliente("BBBB900101HDFCCC01", "BBBB900101XY1", "inactivo@test.com", "2000000002");
             inactivo.setActivo(false);
             clienteRepository.save(inactivo);
 
-            List<Cliente> activos = clienteRepository.findByActivoTrue();
-            assertThat(activos).isNotEmpty();
-            assertThat(activos).allMatch(Cliente::getActivo);
+            ClienteConsultaRequestDto f = new ClienteConsultaRequestDto();
+            f.setActivo(true);
+            assertThat(buscar(f)).isNotEmpty().allMatch(Cliente::getActivo);
         }
 
         @Test
-        @DisplayName("Todos activos — findByActivoTrue retorna todos")
-        void findByActivoTrue_todosActivos_retornaTodos() {
-            List<Cliente> activos = clienteRepository.findByActivoTrue();
-            assertThat(activos).hasSizeGreaterThanOrEqualTo(1);
-        }
-    }
+        @DisplayName("Combina filtros de cliente, domicilio y cuenta")
+        void filtrosCombinados() {
+            ClienteConsultaRequestDto f = new ClienteConsultaRequestDto();
+            f.setRfc("AAAA900101AB1");
+            f.setMunicipio("munici");
+            f.setEstatusCuenta("ACTIVA");
+            f.setIngresoMinimo(BigDecimal.valueOf(5000));
+            assertThat(buscar(f)).hasSize(1);
 
-    // ─────────────────────────────────────────────
-    //  5. Consulta por rango de fechas
-    // ─────────────────────────────────────────────
-    @Nested
-    @DisplayName("Consulta por rango de fechas")
-    class RangoFechasTests {
-
-        @Test
-        @DisplayName("findClientesByRangoFechas incluye clientes en el rango")
-        void findClientesByRangoFechas_retornaClientesDentroDelRango() {
-            LocalDateTime inicio = LocalDateTime.now().minusDays(1);
-            LocalDateTime fin = LocalDateTime.now().plusDays(1);
-            List<Cliente> resultado = clienteRepository.findClientesByRangoFechas(inicio, fin);
-            assertThat(resultado).isNotEmpty();
+            f.setEstatusCuenta("INACTIVA");
+            assertThat(buscar(f)).isEmpty();
         }
 
         @Test
-        @DisplayName("findClientesByRangoFechas excluye clientes fuera del rango")
-        void findClientesByRangoFechas_excluye_clientesFueraRango() {
-            LocalDateTime inicio = LocalDateTime.of(2000, 1, 1, 0, 0);
-            LocalDateTime fin = LocalDateTime.of(2000, 12, 31, 23, 59);
-            List<Cliente> resultado = clienteRepository.findClientesByRangoFechas(inicio, fin);
-            assertThat(resultado).isEmpty();
+        @DisplayName("Rango de fechas de registro incluye y excluye correctamente")
+        void rangoFechas() {
+            ClienteConsultaRequestDto f = new ClienteConsultaRequestDto();
+            f.setFechaRegistroDesde(LocalDate.now().minusDays(1));
+            f.setFechaRegistroHasta(LocalDate.now());
+            assertThat(buscar(f)).isNotEmpty();
+
+            f.setFechaRegistroDesde(LocalDate.of(2000, 1, 1));
+            f.setFechaRegistroHasta(LocalDate.of(2000, 12, 31));
+            assertThat(buscar(f)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("findFirstByCurpOrRfc encuentra por CURP o por RFC")
+        void porCurpORfc() {
+            assertThat(clienteRepository.findFirstByCurpOrRfc("AAAA900101HDFBBB01", "AAAA900101HDFBBB01")).isPresent();
+            assertThat(clienteRepository.findFirstByCurpOrRfc("AAAA900101AB1", "AAAA900101AB1")).isPresent();
+            assertThat(clienteRepository.findFirstByCurpOrRfc("NOEXISTE", "NOEXISTE")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("existsByCorreoAndIdNot ignora al propio cliente")
+        void correoDeOtroCliente() {
+            assertThat(clienteRepository.existsByCorreoAndIdNot("test@test.com", clienteGuardado.getId())).isFalse();
+            assertThat(clienteRepository.existsByCorreoAndIdNot("test@test.com", -1L)).isTrue();
         }
     }
 

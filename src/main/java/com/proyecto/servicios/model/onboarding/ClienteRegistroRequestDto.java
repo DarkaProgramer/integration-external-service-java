@@ -35,20 +35,23 @@ public class ClienteRegistroRequestDto {
     private LocalDate fechaNacimiento;
 
     @NotBlank(message = "La CURP es obligatoria")
-    @Pattern(regexp = "^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]{2}$", message = "Formato de CURP inválido")
+    @Pattern(regexp = ValidacionPatrones.CURP, message = "Formato de CURP inválido")
     private String curp;
 
     @NotBlank(message = "El RFC es obligatorio")
-    @Pattern(regexp = "^[A-Z&Ñ]{3,4}\\d{6}[A-V0-9]{3}$", message = "Formato de RFC inválido")
+    @Pattern(regexp = ValidacionPatrones.RFC, message = "Formato de RFC inválido")
     private String rfc;
 
     @NotBlank(message = "El sexo es obligatorio")
+    @Pattern(regexp = ValidacionPatrones.SEXO, message = "El sexo debe ser M (masculino) o F (femenino)")
     private String sexo;
 
     @NotBlank(message = "La nacionalidad es obligatoria")
+    @Size(max = 50, message = "La nacionalidad no puede exceder los 50 caracteres")
     private String nacionalidad;
 
     @NotBlank(message = "El estado civil es obligatorio")
+    @Size(max = 30, message = "El estado civil no puede exceder los 30 caracteres")
     private String estadoCivil;
 
     // --- Datos de Contacto ---
@@ -71,12 +74,15 @@ public class ClienteRegistroRequestDto {
 
     // --- Información Laboral ---
     @NotBlank(message = "La ocupación es obligatoria")
+    @Size(max = 100, message = "La ocupación no puede exceder los 100 caracteres")
     private String ocupacion;
 
     @NotBlank(message = "La empresa es obligatoria")
+    @Size(max = 100, message = "La empresa no puede exceder los 100 caracteres")
     private String empresa;
 
     @NotNull(message = "El ingreso mensual es obligatorio")
     @DecimalMin(value = "0.01", message = "El ingreso mensual debe ser mayor a cero")
+    @Digits(integer = 10, fraction = 2, message = "El ingreso mensual admite hasta 10 enteros y 2 decimales")
     private BigDecimal ingresoMensual;
 }
