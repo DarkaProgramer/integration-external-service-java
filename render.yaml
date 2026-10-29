@@ -1,0 +1,28 @@
+# Blueprint de Render: crea la base PostgreSQL y el servicio web desde el Dockerfile.
+# Los secretos marcados con sync: false se capturan en el panel de Render al crear el Blueprint;
+# nunca se escriben en este archivo.
+databases:
+  - name: hasani-db
+    plan: free
+    databaseName: onboarding_banco
+
+services:
+  - type: web
+    name: hasani-api
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hasani-db
+          property: connectionString
+      - key: APP_JWT_SECRET
+        generateValue: true
+      - key: GESTOPAGO_PASSWORD
+        sync: false
+      - key: GESTOPAGO_PRODUCTS_TOKEN
+        sync: false
+      - key: GESTOPAGO_TX_TOKEN
+        sync: false

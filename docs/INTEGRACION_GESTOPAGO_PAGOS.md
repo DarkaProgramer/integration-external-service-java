@@ -184,6 +184,7 @@ Variables de entorno (ninguna se versiona; ver `.env.example`):
 | `GESTOPAGO_PRODUCTS_TOKEN` | Token Bearer del catálogo |
 | `GESTOPAGO_PASSWORD` | Contraseña del login de Gestopago |
 | `APP_JWT_SECRET` | Secreto para firmar/validar los tokens de los clientes (≥ 32 caracteres) |
+| `DATABASE_URL` | Conexión a la base (PostgreSQL en Render; ver `DESPLIEGUE_RENDER.md`) |
 | `GESTOPAGO_CODIGOS_APROBADA` / `GESTOPAGO_CODIGOS_RECHAZO` | Códigos de respuesta del proveedor (por defecto `0,00` y ninguno) |
 
 Reglas en `application.properties`: `pagos.monto-minimo`, `pagos.monto-maximo` (productos de monto
@@ -210,7 +211,7 @@ y `GestoPagoTransaccionesClient`:
 ## 10. Cómo probar
 
 ```bash
-./gradlew test        # 283 pruebas (102 de esta integración)
+./gradlew test        # 288 pruebas
 ```
 
 * `PagoServicioIntegrationTest`: flujo completo con base H2 y un servidor HTTP local que simula Gestopago
