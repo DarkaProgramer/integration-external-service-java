@@ -80,9 +80,10 @@ public class ConfigDB {
             HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
             em.setJpaVendorAdapter(vendorAdapter);
             Map<String, Object> properties = new HashMap<>();
-            properties.put("hibernate.hbm2ddl.auto", "update");
+            properties.put("hibernate.hbm2ddl.auto", env.getProperty("spring.jpa.hibernate.ddl-auto", "update"));
             properties.put("hibernate.show-sql", false);
-            properties.put("hibernate.dialect", "org.hibernate.dialect.MySQLDialect");
+            // Configurable para pruebas (H2) y para otros motores al desplegar
+            properties.put("hibernate.dialect", env.getProperty("spring.jpa.properties.hibernate.dialect", "org.hibernate.dialect.MySQLDialect"));
             properties.put("jakarta.persistence.query.timeout", 600000);
             em.setJpaPropertyMap(properties);
 
