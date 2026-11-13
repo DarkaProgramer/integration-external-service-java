@@ -13,4 +13,8 @@ public interface GestoPagoProductsClient {
 
     @GetMapping("/sistema/service/getProductList.do")
     GestoPagoProductListResponse getProductList();
+
+    /** Mismo catálogo como texto crudo (Gestopago lo entrega en XML); lo interpreta el servicio de catálogo de pagos. */
+    @GetMapping("/sistema/service/getProductList.do")
+    String getProductListRaw();
 }

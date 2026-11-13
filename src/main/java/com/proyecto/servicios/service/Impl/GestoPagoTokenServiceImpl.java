@@ -69,7 +69,8 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             log.info("Token GestoPago renovado correctamente");
 
         } catch (Exception e) {
-            log.error("Error al renovar token GestoPago: {}", e.getMessage(), e);
+            // Solo la clase: el mensaje de Feign incluye la URL con la contraseña como parámetro
+            log.error("Error al renovar token GestoPago: causa={}", e.getClass().getSimpleName());
         }
     }
 

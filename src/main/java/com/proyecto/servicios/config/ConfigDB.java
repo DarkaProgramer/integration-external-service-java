@@ -39,16 +39,13 @@ public class ConfigDB {
     public DataSource sfDatasource(){
         HikariConfig config = new HikariConfig();
         try{
-            String url = env.getProperty("spring.datasource.url");
+            // Acepta URLs JDBC y las de Render (postgres://) o Railway (mysql://), con credenciales incluidas
+            UrlBaseDatos conexion = UrlBaseDatos.desde(env.getProperty("spring.datasource.url"),
+                    env.getProperty("spring.datasource.username"), env.getProperty("spring.datasource.password"));
 
-            // Corrige automáticamente si la URL viene con el formato de Railway ("mysql://")
-            if (url != null && url.startsWith("mysql://")) {
-                url = "jdbc:" + url;
-            }
-
-            config.setJdbcUrl(url);
-            config.setPassword(env.getProperty("spring.datasource.password"));
-            config.setUsername(env.getProperty("spring.datasource.username"));
+            config.setJdbcUrl(conexion.jdbcUrl());
+            config.setUsername(conexion.usuario());
+            config.setPassword(conexion.clave());
             config.setMaximumPoolSize(10);
             config.setMaxLifetime(18800);
             config.setConnectionTimeout(5000);
@@ -80,9 +77,13 @@ public class ConfigDB {
             HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
             em.setJpaVendorAdapter(vendorAdapter);
             Map<String, Object> properties = new HashMap<>();
-            properties.put("hibernate.hbm2ddl.auto", "update");
+            properties.put("hibernate.hbm2ddl.auto", env.getProperty("spring.jpa.hibernate.ddl-auto", "update"));
             properties.put("hibernate.show-sql", false);
-            properties.put("hibernate.dialect", "org.hibernate.dialect.MySQLDialect");
+            // Sin dialecto configurado, Hibernate lo detecta de la conexión (MySQL en Railway/local, PostgreSQL en Render)
+            String dialecto = env.getProperty("spring.jpa.properties.hibernate.dialect");
+            if (dialecto != null && !dialecto.isBlank()) {
+                properties.put("hibernate.dialect", dialecto);
+            }
             properties.put("jakarta.persistence.query.timeout", 600000);
             em.setJpaPropertyMap(properties);
 
