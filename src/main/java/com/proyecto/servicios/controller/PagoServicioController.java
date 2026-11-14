@@ -3,10 +3,13 @@ package com.proyecto.servicios.controller;
 import com.proyecto.servicios.entity.pagos.EstatusPago;
 import com.proyecto.servicios.model.GenericResponse;
 import com.proyecto.servicios.model.comun.ApiResponse;
+import com.proyecto.servicios.model.comun.PaginaDto;
 import com.proyecto.servicios.model.pagos.ConsultaPagoRequestDto;
+import com.proyecto.servicios.model.pagos.HistorialPagosRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioResponseDto;
 import com.proyecto.servicios.model.pagos.ResolucionManualRequestDto;
+import com.proyecto.servicios.model.pagos.ResultadoPago;
 import com.proyecto.servicios.seguridad.ClienteActual;
 import com.proyecto.servicios.seguridad.ClienteAutenticado;
 import com.proyecto.servicios.service.pagos.PagoServicioService;
@@ -64,6 +67,15 @@ public class PagoServicioController {
         return ResponseEntity.ok(ApiResponse.of(HttpStatus.OK.value(), mensajePara(pago.getEstatus()), pago));
     }
 
+    /** Historial del usuario autenticado (más reciente primero). El cuerpo es opcional: {pagina, tamano, resultado}. */
+    @PostMapping(value = "/historial")
+    public ResponseEntity<ApiResponse<PaginaDto<PagoServicioResponseDto>>> historial(
+            @ClienteActual ClienteAutenticado cliente,
+            @Valid @RequestBody(required = false) HistorialPagosRequestDto filtros) {
+        return ResponseEntity.ok(ApiResponse.of(HttpStatus.OK.value(), "Historial de pagos",
+                pagoServicioService.historial(cliente, filtros)));
+    }
+
     /** Uso interno de operaciones: requiere el permiso pagos:conciliar en el token. */
     @PostMapping(value = "/conciliacion/resolver", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<PagoServicioResponseDto>> resolver(@ClienteActual ClienteAutenticado operador,
@@ -81,11 +93,6 @@ public class PagoServicioController {
     }
 
     static String mensajePara(EstatusPago estatus) {
-        return switch (estatus) {
-            case APROBADA -> "Pago realizado correctamente";
-            case RECHAZADA -> "El proveedor rechazó el pago; el monto fue devuelto a su cuenta";
-            case PENDIENTE, EN_CONCILIACION -> "El pago está en proceso de confirmación con el proveedor; el monto permanece retenido. Consulte el folio más tarde";
-            case REVISION_MANUAL -> "El pago está en revisión; el monto permanece retenido hasta confirmar el resultado con el proveedor";
-        };
+        return ResultadoPago.mensaje(estatus);
     }
 }

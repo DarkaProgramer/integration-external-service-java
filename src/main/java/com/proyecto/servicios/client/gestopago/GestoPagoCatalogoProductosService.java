@@ -1,13 +1,16 @@
 package com.proyecto.servicios.client.gestopago;
 
 import com.proyecto.servicios.client.GestoPagoProductsClient;
+import com.proyecto.servicios.config.GestoPagoCatalogoProperties;
 import com.proyecto.servicios.config.PagosProperties;
 import com.proyecto.servicios.exception.pagos.CatalogoNoDisponibleException;
 import com.proyecto.servicios.exception.pagos.MontoNoPermitidoException;
 import com.proyecto.servicios.exception.pagos.ProductoNoDisponibleException;
 import com.proyecto.servicios.service.pagos.CatalogoProductosService;
 import com.proyecto.servicios.service.pagos.ProductoCatalogo;
+import com.proyecto.servicios.service.pagos.ReglaReferencia;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,9 +18,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Valida servicio, producto y monto contra el catálogo real de Gestopago (getProductList.do).
@@ -36,21 +43,47 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
     private final GestoPagoProductsClient productsClient;
     private final PagosProperties properties;
     private final Clock clock;
+    private final GestoPagoCatalogoProperties presentacion;
 
     private volatile Catalogo catalogo = new Catalogo(Collections.emptyMap(), Instant.EPOCH);
 
     public GestoPagoCatalogoProductosService(GestoPagoProductsClient productsClient, PagosProperties properties, Clock clock) {
+        this(productsClient, properties, clock, new GestoPagoCatalogoProperties());
+    }
+
+    @Autowired
+    public GestoPagoCatalogoProductosService(GestoPagoProductsClient productsClient, PagosProperties properties, Clock clock,
+                                             GestoPagoCatalogoProperties presentacion) {
         this.productsClient = productsClient;
         this.properties = properties;
         this.clock = clock;
+        this.presentacion = presentacion;
     }
 
     @Override
     public ProductoCatalogo validarProductoYMonto(String idServicio, String idProducto, BigDecimal monto) {
-        ProductoCatalogo producto = Optional.ofNullable(productosVigentes().get(llave(idServicio, idProducto)))
-                .orElseThrow(ProductoNoDisponibleException::new);
+        ProductoCatalogo producto = obtener(idServicio, idProducto);
         validarMonto(producto, monto);
         return producto;
+    }
+
+    @Override
+    public ProductoCatalogo obtener(String idServicio, String idProducto) {
+        return Optional.ofNullable(productosVigentes().get(llave(idServicio, idProducto)))
+                .orElseThrow(ProductoNoDisponibleException::new);
+    }
+
+    @Override
+    public List<ProductoCatalogo> listar() {
+        return productosVigentes().values().stream()
+                .sorted(Comparator.comparing((ProductoCatalogo p) -> textoOrden(p.categoria()))
+                        .thenComparing(p -> textoOrden(p.servicio()))
+                        .thenComparing(p -> textoOrden(p.nombre())))
+                .toList();
+    }
+
+    private static String textoOrden(String valor) {
+        return valor == null ? "" : valor.toLowerCase(Locale.ROOT);
     }
 
     private void validarMonto(ProductoCatalogo producto, BigDecimal monto) {
@@ -105,7 +138,7 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
     private Optional<ProductoCatalogo> aProducto(RespuestaGestoPago nodo) {
         String idServicio = nodo.valor("idServicio").orElseThrow();
         String idProducto = nodo.valor("idProducto").orElseThrow();
-        String nombre = nodo.valor("producto", "nombre", "name").orElse(null);
+        String nombre = nodo.valor("producto", "nombre", "name", "nombreProducto").orElse(null);
         BigDecimal precio;
         try {
             precio = nodo.valor("precio", "price").map(BigDecimal::new).orElse(null);
@@ -113,8 +146,64 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
             // Un precio ilegible no puede validar montos: se descarta el producto (falla cerrada)
             return Optional.empty();
         }
-        return Optional.of(new ProductoCatalogo(idServicio, idProducto, nombre, precio));
+        String servicio = nodo.valor("servicio", "nombreServicio", "proveedor", "marca").orElse(null);
+        String descripcion = nodo.valor("descripcion", "description", "leyenda", "legend", "ayuda")
+                .orElseGet(() -> descripcionPorDefecto(servicio, nombre));
+        return Optional.of(new ProductoCatalogo(idServicio, idProducto, nombre, precio, servicio, descripcion,
+                categoria(nodo), logo(nodo, idServicio), reglaReferencia(nodo)));
     }
+
+    private String categoria(RespuestaGestoPago nodo) {
+        Optional<String> nombre = nodo.valor("categoria", "nombreCategoria", "tipoServicio", "catTipoServicio");
+        if (nombre.isPresent() && !esNumero(nombre.get())) {
+            return nombre.get();
+        }
+        Optional<String> id = nodo.valor("idCatTipoServicio", "idCategoria", "idTipoServicio").or(() -> nombre);
+        return id.map(i -> presentacion.getCategorias().getOrDefault(i, "Categoría " + i)).orElse(CATEGORIA_GENERAL);
+    }
+
+    private String logo(RespuestaGestoPago nodo, String idServicio) {
+        return nodo.valor("logo", "urlLogo", "logoUrl", "imagen", "urlImagen", "img", "icono")
+                .filter(GestoPagoCatalogoProductosService::esUrlSegura)
+                .orElseGet(() -> presentacion.getLogoUrl() == null || presentacion.getLogoUrl().isBlank()
+                        ? null
+                        : presentacion.getLogoUrl().replace("{idServicio}", idServicio));
+    }
+
+    /** Longitud y tipo de referencia si el catálogo los informa; si no, la regla general (4 a 40 alfanuméricos). */
+    private static ReglaReferencia reglaReferencia(RespuestaGestoPago nodo) {
+        Integer maxima = entero(nodo.valor("longitudReferencia", "longitudMaxima", "maxLongitud", "longitud", "maxLength"));
+        Integer minima = entero(nodo.valor("longitudMinima", "minLongitud", "minLength"));
+        boolean soloDigitos = nodo.valor("tipoReferencia")
+                .map(t -> TIPOS_NUMERICOS.contains(t.toUpperCase(Locale.ROOT)))
+                .orElse(false);
+        int max = maxima == null ? ReglaReferencia.MAXIMO_GENERAL : maxima;
+        int min = minima == null ? Math.min(ReglaReferencia.MINIMO_GENERAL, max) : minima;
+        return new ReglaReferencia(min, max, soloDigitos);
+    }
+
+    private static Integer entero(Optional<String> valor) {
+        return valor.filter(GestoPagoCatalogoProductosService::esNumero).map(Integer::valueOf).filter(v -> v > 0).orElse(null);
+    }
+
+    private static boolean esNumero(String valor) {
+        return valor.length() <= 6 && valor.chars().allMatch(Character::isDigit);
+    }
+
+    private static boolean esUrlSegura(String url) {
+        return url.startsWith("https://") || url.startsWith("http://");
+    }
+
+    private static String descripcionPorDefecto(String servicio, String nombre) {
+        if (servicio == null) {
+            return nombre;
+        }
+        return nombre == null || nombre.equalsIgnoreCase(servicio) ? servicio : servicio + " - " + nombre;
+    }
+
+    private static final String CATEGORIA_GENERAL = "Servicios";
+    /** Valores de tipoReferencia que indican referencia solo numérica (p. ej. número telefónico o de servicio). */
+    private static final Set<String> TIPOS_NUMERICOS = Set.of("N", "NUM", "NUMERO", "NUMERICO", "NUMERICA", "TELEFONO");
 
     private static String llave(String idServicio, String idProducto) {
         return idServicio + "|" + idProducto;

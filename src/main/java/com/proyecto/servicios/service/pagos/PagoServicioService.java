@@ -1,5 +1,7 @@
 package com.proyecto.servicios.service.pagos;
 
+import com.proyecto.servicios.model.comun.PaginaDto;
+import com.proyecto.servicios.model.pagos.HistorialPagosRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioResponseDto;
 import com.proyecto.servicios.model.pagos.ResolucionManualRequestDto;
@@ -14,6 +16,9 @@ public interface PagoServicioService {
     ResultadoPagoServicio pagar(ClienteAutenticado cliente, String idempotencyKey, PagoServicioRequestDto solicitud);
 
     PagoServicioResponseDto consultar(ClienteAutenticado cliente, String folio);
+
+    /** Pagos del cliente autenticado, del más reciente al más antiguo. */
+    PaginaDto<PagoServicioResponseDto> historial(ClienteAutenticado cliente, HistorialPagosRequestDto filtros);
 
     /** Resolución de un pago dudoso por un operador con permiso de conciliación. */
     PagoServicioResponseDto resolverManualmente(ClienteAutenticado operador, ResolucionManualRequestDto resolucion);

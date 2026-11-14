@@ -7,6 +7,8 @@ import com.proyecto.servicios.exception.pagos.IdempotencyKeyInvalidaException;
 import com.proyecto.servicios.exception.pagos.IdempotencyKeyReutilizadaException;
 import com.proyecto.servicios.exception.pagos.OperacionNoAutorizadaException;
 import com.proyecto.servicios.exception.pagos.PagoNoEncontradoException;
+import com.proyecto.servicios.model.comun.PaginaDto;
+import com.proyecto.servicios.model.pagos.HistorialPagosRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioRequestDto;
 import com.proyecto.servicios.model.pagos.PagoServicioResponseDto;
 import com.proyecto.servicios.model.pagos.PatronesPago;
@@ -19,9 +21,13 @@ import com.proyecto.servicios.service.pagos.ProductoCatalogo;
 import com.proyecto.servicios.service.pagos.ProveedorPagosGateway;
 import com.proyecto.servicios.service.pagos.ResultadoProveedor;
 import com.proyecto.servicios.service.pagos.SolicitudPagoProveedor;
+import com.proyecto.servicios.service.pagos.ValidacionReferenciaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.RoundingMode;
@@ -52,6 +58,7 @@ import java.util.regex.Pattern;
 public class PagoServicioServiceImpl implements PagoServicioService {
 
     private static final Pattern UUID = Pattern.compile(PatronesPago.UUID);
+    private static final int TAMANO_HISTORIAL = 20;
     private static final Set<EstatusPago> RESOLUBLES_MANUALMENTE = EnumSet.of(EstatusPago.EN_CONCILIACION, EstatusPago.REVISION_MANUAL);
 
     private final CatalogoProductosService catalogoProductosService;
@@ -59,6 +66,7 @@ public class PagoServicioServiceImpl implements PagoServicioService {
     private final PagoServicioTransacciones transacciones;
     private final PagoServicioRepository pagoRepository;
     private final PagoServicioMapper mapper;
+    private final ValidacionReferenciaService validacionReferenciaService;
 
     @Override
     public ResultadoPagoServicio pagar(ClienteAutenticado cliente, String idempotencyKey, PagoServicioRequestDto solicitud) {
@@ -74,6 +82,9 @@ public class PagoServicioServiceImpl implements PagoServicioService {
         if (previo.isPresent()) {
             return repetir(previo.get(), huella);
         }
+
+        // Sin una validación vigente de la referencia con Gestopago no se cobra nada
+        validacionReferenciaService.verificarParaPago(cliente, solicitud);
 
         ProductoCatalogo producto = catalogoProductosService.validarProductoYMonto(
                 solicitud.getIdServicio(), solicitud.getIdProducto(), solicitud.getMonto());
@@ -108,6 +119,19 @@ public class PagoServicioServiceImpl implements PagoServicioService {
         return pagoRepository.findByFolioAndClienteId(folio.toLowerCase(), cliente.clienteId())
                 .map(mapper::toDto)
                 .orElseThrow(PagoNoEncontradoException::new);
+    }
+
+    @Override
+    public PaginaDto<PagoServicioResponseDto> historial(ClienteAutenticado cliente, HistorialPagosRequestDto filtros) {
+        exigirPermiso(cliente, ClienteAutenticado.PERMISO_PAGAR_SERVICIOS);
+        HistorialPagosRequestDto f = filtros == null ? new HistorialPagosRequestDto() : filtros;
+        PageRequest pagina = PageRequest.of(f.getPagina() == null ? 0 : f.getPagina(),
+                f.getTamano() == null ? TAMANO_HISTORIAL : f.getTamano(),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<PagoServicio> pagos = f.getResultado() == null
+                ? pagoRepository.findByClienteId(cliente.clienteId(), pagina)
+                : pagoRepository.findByClienteIdAndEstatusIn(cliente.clienteId(), f.getResultado().estatus(), pagina);
+        return PaginaDto.de(pagos, mapper::toDto);
     }
 
     @Override

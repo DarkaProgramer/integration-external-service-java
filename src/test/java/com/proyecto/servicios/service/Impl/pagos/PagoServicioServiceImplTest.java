@@ -54,6 +54,7 @@ class PagoServicioServiceImplTest {
     @Mock private ProveedorPagosGateway gateway;
     @Mock private PagoServicioTransacciones transacciones;
     @Mock private PagoServicioRepository pagoRepository;
+    @Mock private com.proyecto.servicios.service.pagos.ValidacionReferenciaService validacionReferencia;
 
     private PagoServicioServiceImpl service;
     private String llave;
@@ -61,7 +62,7 @@ class PagoServicioServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new PagoServicioServiceImpl(catalogo, gateway, transacciones, pagoRepository, new PagoServicioMapper());
+        service = new PagoServicioServiceImpl(catalogo, gateway, transacciones, pagoRepository, new PagoServicioMapper(), validacionReferencia);
         llave = UUID.randomUUID().toString();
         solicitud = new PagoServicioRequestDto();
         solicitud.setNumeroCuenta("1234567890");
@@ -191,5 +192,36 @@ class PagoServicioServiceImplTest {
         pago.setMonto(new BigDecimal("100"));
         pago.setEstatus(estatus);
         return pago;
+    }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("Historial: solo del cliente, más reciente primero, con filtro por resultado")
+    void historial() {
+        PagoServicio pago = new PagoServicio();
+        pago.setFolio("f1");
+        pago.setEstatus(EstatusPago.APROBADA);
+        pago.setReferencia("5512345678");
+        pago.setMonto(new BigDecimal("100"));
+        org.springframework.data.domain.Page<PagoServicio> pagina = new org.springframework.data.domain.PageImpl<>(
+                java.util.List.of(pago), org.springframework.data.domain.PageRequest.of(0, 20), 1);
+        when(pagoRepository.findByClienteId(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(pagina);
+
+        var resultado = service.historial(new ClienteAutenticado(1L, Set.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS)), null);
+        assertThat(resultado.getTotalElementos()).isEqualTo(1);
+        assertThat(resultado.getContenido()).singleElement().satisfies(p -> {
+            assertThat(p.getResultado()).isEqualTo(com.proyecto.servicios.model.pagos.ResultadoPago.EXITOSO);
+            assertThat(p.getReferencia()).isEqualTo("******5678");
+        });
+
+        when(pagoRepository.findByClienteIdAndEstatusIn(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(com.proyecto.servicios.model.pagos.ResultadoPago.PENDIENTE.estatus()), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        var filtros = new com.proyecto.servicios.model.pagos.HistorialPagosRequestDto(null, null,
+                com.proyecto.servicios.model.pagos.ResultadoPago.PENDIENTE);
+        assertThat(service.historial(new ClienteAutenticado(1L, Set.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS)), filtros)
+                .getContenido()).isEmpty();
+
+        assertThatThrownBy(() -> service.historial(new ClienteAutenticado(1L, Set.of()), null))
+                .isInstanceOf(com.proyecto.servicios.exception.pagos.OperacionNoAutorizadaException.class);
     }
 }
