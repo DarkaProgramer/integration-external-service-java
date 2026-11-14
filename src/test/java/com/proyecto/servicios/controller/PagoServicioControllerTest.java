@@ -49,7 +49,7 @@ class PagoServicioControllerTest {
 
     private static final String URL = "/api/pagos/servicios";
     private static final String BODY = """
-            {"numeroCuenta":"1234567890","idServicio":"1","idProducto":"100","referencia":"5512345678","monto":100.00}""";
+            {"numeroCuenta":"1234567890","idServicio":"1","idProducto":"100","referencia":"5512345678","validacionId":"6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b","monto":100.00}""";
 
     private PagoServicioService pagoServicioService;
     private MockMvc mockMvc;
@@ -65,7 +65,7 @@ class PagoServicioControllerTest {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         mockMvc = MockMvcBuilders.standaloneSetup(new PagoServicioController(pagoServicioService))
-                .setCustomArgumentResolvers(new ClienteActualArgumentResolver(tokenService))
+                .setCustomArgumentResolvers(new ClienteActualArgumentResolver(tokenService, cliente -> { }))
                 .setControllerAdvice(new ValidadorCampos(), new PagoServicioExceptionHandler(), new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();

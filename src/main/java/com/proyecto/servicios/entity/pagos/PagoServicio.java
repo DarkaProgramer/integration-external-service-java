@@ -61,6 +61,9 @@ public class PagoServicio {
     @Column(name = "nombre_producto", length = 150)
     private String nombreProducto;
 
+    @Column(name = "nombre_servicio", length = 150)
+    private String nombreServicio;
+
     @Column(nullable = false, length = 40)
     private String referencia;
 

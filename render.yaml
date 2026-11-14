@@ -26,3 +26,9 @@ services:
         sync: false
       - key: GESTOPAGO_TX_TOKEN
         sync: false
+      - key: GESTOPAGO_URL
+        sync: false
+      - key: GESTOPAGO_REFERENCIA_PATH
+        sync: false
+      - key: APP_CORS_ORIGINS
+        sync: false

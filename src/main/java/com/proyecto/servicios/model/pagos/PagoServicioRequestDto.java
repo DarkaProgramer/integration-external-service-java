@@ -34,6 +34,11 @@ public class PagoServicioRequestDto {
     @Pattern(regexp = "^[A-Za-z0-9]{4,40}$", message = "La referencia debe tener entre 4 y 40 letras o dígitos, sin espacios ni símbolos")
     private String referencia;
 
+    /** Comprobante devuelto por POST /api/pagos/referencias/validar: sin él no se paga. */
+    @NotBlank(message = "Valida la referencia antes de pagar: el validacionId es obligatorio")
+    @Pattern(regexp = PatronesPago.UUID, message = "El validacionId debe ser un UUID")
+    private String validacionId;
+
     @NotNull(message = "El monto es obligatorio")
     @DecimalMin(value = "0.01", message = "El monto debe ser mayor a cero")
     @DecimalMax(value = "9999999.99", message = "El monto excede el máximo permitido")

@@ -12,10 +12,12 @@ import com.proyecto.servicios.exception.pagos.LimiteDiarioExcedidoException;
 import com.proyecto.servicios.exception.pagos.OperacionNoAutorizadaException;
 import com.proyecto.servicios.exception.pagos.SaldoInsuficienteException;
 import com.proyecto.servicios.exception.pagos.SolicitudDuplicadaException;
+import com.proyecto.servicios.exception.pagos.ValidacionYaUsadaException;
 import com.proyecto.servicios.model.pagos.PagoServicioRequestDto;
 import com.proyecto.servicios.repositorys.CuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.MovimientoCuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.PagoServicioRepository;
+import com.proyecto.servicios.repositorys.pagos.ValidacionReferenciaRepository;
 import com.proyecto.servicios.seguridad.ClienteAutenticado;
 import com.proyecto.servicios.service.pagos.ProductoCatalogo;
 import com.proyecto.servicios.service.pagos.ResultadoProveedor;
@@ -51,6 +53,7 @@ public class PagoServicioTransacciones {
     private final CuentaRepository cuentaRepository;
     private final PagoServicioRepository pagoRepository;
     private final MovimientoCuentaRepository movimientoRepository;
+    private final ValidacionReferenciaRepository validacionRepository;
     private final PagosProperties properties;
     private final Clock clock;
 
@@ -99,11 +102,17 @@ public class PagoServicioTransacciones {
         pago.setIdServicio(solicitud.getIdServicio());
         pago.setIdProducto(solicitud.getIdProducto());
         pago.setNombreProducto(producto.nombre());
+        pago.setNombreServicio(producto.servicio());
         pago.setReferencia(solicitud.getReferencia());
         pago.setMonto(monto);
         pago.setEstatus(EstatusPago.PENDIENTE);
         pago.setCreatedAt(ahora);
         pagoRepository.save(pago);
+        // La validación de la referencia se consume en la misma transacción: si otra petición la usó primero,
+        // se revierte todo (sin cargo)
+        if (validacionRepository.marcarUsada(solicitud.getValidacionId().toLowerCase(), pago.getFolio(), ahora) != 1) {
+            throw new ValidacionYaUsadaException();
+        }
         movimientoRepository.save(new MovimientoCuenta(cuenta, pago, TipoMovimiento.CARGO, monto));
         return new Reserva(pago, true);
     }

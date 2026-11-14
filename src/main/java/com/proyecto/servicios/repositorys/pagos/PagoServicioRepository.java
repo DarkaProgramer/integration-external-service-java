@@ -3,6 +3,7 @@ package com.proyecto.servicios.repositorys.pagos;
 import com.proyecto.servicios.entity.pagos.EstatusPago;
 import com.proyecto.servicios.entity.pagos.PagoServicio;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -24,6 +25,11 @@ public interface PagoServicioRepository extends JpaRepository<PagoServicio, Long
     Optional<PagoServicio> findByFolioAndClienteId(String folio, Long clienteId);
 
     Optional<PagoServicio> findByFolio(String folio);
+
+    /** Historial del cliente, más reciente primero (el orden lo da el Pageable). */
+    Page<PagoServicio> findByClienteId(Long clienteId, Pageable pageable);
+
+    Page<PagoServicio> findByClienteIdAndEstatusIn(Long clienteId, Collection<EstatusPago> estatus, Pageable pageable);
 
     /** Bloquea la fila del pago (SELECT ... FOR UPDATE) para aplicar un resultado sin carreras. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

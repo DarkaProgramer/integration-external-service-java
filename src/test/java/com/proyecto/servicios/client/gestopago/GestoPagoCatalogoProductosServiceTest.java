@@ -142,4 +142,42 @@ class GestoPagoCatalogoProductosServiceTest {
             return instante;
         }
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("Presentación: servicio, descripción, categoría, logo y regla de referencia; orden por categoría")
+    void listar_presentacionDelCatalogo() {
+        when(client.getProductListRaw()).thenReturn("""
+                <RESPONSE><PRODUCTOS>
+                  <producto servicio="Telcel" producto="Telcel $50" idServicio="1" idProducto="50" precio="50"
+                            idCatTipoServicio="1" tipoReferencia="NUMERO" longitudReferencia="10"/>
+                  <producto servicio="CFE" producto="CFE" idServicio="5" idProducto="500" precio="0" categoria="Luz"
+                            logo="ftp://no-seguro/logo.png" longitudMinima="12" longitudReferencia="30"/>
+                  <producto producto="Sin servicio" idServicio="9" idProducto="900" precio="10" tipoServicio="7"/>
+                  <producto servicio="Agua" producto="Agua" idServicio="8" idProducto="800" precio="0" leyenda="Pago de agua"/>
+                </PRODUCTOS></RESPONSE>""");
+        com.proyecto.servicios.config.GestoPagoCatalogoProperties presentacion = new com.proyecto.servicios.config.GestoPagoCatalogoProperties();
+        presentacion.setLogoUrl("https://cdn.test/{idServicio}.png");
+        presentacion.getCategorias().put("1", "Recargas");
+        PagosProperties properties = new PagosProperties();
+        properties.getCatalogo().setTtlMinutos(30);
+        GestoPagoCatalogoProductosService conPresentacion = new GestoPagoCatalogoProductosService(client, properties, clock, presentacion);
+
+        java.util.List<ProductoCatalogo> productos = conPresentacion.listar();
+
+        assertThat(productos).extracting(ProductoCatalogo::categoria)
+                .containsExactly("Categoría 7", "Luz", "Recargas", "Servicios");
+        ProductoCatalogo telcel = conPresentacion.obtener("1", "50");
+        assertThat(telcel.descripcion()).isEqualTo("Telcel - Telcel $50");
+        assertThat(telcel.logoUrl()).isEqualTo("https://cdn.test/1.png");
+        assertThat(telcel.referencia().soloDigitos()).isTrue();
+        assertThat(telcel.referencia().longitudMaxima()).isEqualTo(10);
+        ProductoCatalogo cfe = conPresentacion.obtener("5", "500");
+        assertThat(cfe.descripcion()).isEqualTo("CFE");
+        assertThat(cfe.logoUrl()).isEqualTo("https://cdn.test/5.png");
+        assertThat(cfe.referencia().longitudMinima()).isEqualTo(12);
+        assertThat(conPresentacion.obtener("9", "900").descripcion()).isEqualTo("Sin servicio");
+        assertThat(conPresentacion.obtener("8", "800").descripcion()).isEqualTo("Pago de agua");
+        // Sin plantilla de logo
+        assertThat(service.listar()).allSatisfy(p -> assertThat(p.logoUrl()).isNull());
+    }
 }

@@ -2,6 +2,7 @@ package com.proyecto.servicios.service.Impl.pagos;
 
 import com.proyecto.servicios.entity.pagos.PagoServicio;
 import com.proyecto.servicios.model.pagos.PagoServicioResponseDto;
+import com.proyecto.servicios.model.pagos.ResultadoPago;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,9 +14,12 @@ public class PagoServicioMapper {
         return PagoServicioResponseDto.builder()
                 .folio(pago.getFolio())
                 .estatus(pago.getEstatus())
+                .resultado(ResultadoPago.de(pago.getEstatus()))
+                .mensaje(ResultadoPago.mensaje(pago.getEstatus()))
                 .idServicio(pago.getIdServicio())
                 .idProducto(pago.getIdProducto())
                 .producto(pago.getNombreProducto())
+                .servicio(pago.getNombreServicio())
                 .referencia(enmascarar(pago.getReferencia()))
                 .monto(pago.getMonto())
                 .folioProveedor(pago.getFolioProveedor())

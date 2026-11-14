@@ -7,6 +7,8 @@ import com.proyecto.servicios.entity.client.Cuenta;
 import com.proyecto.servicios.entity.pagos.EstatusPago;
 import com.proyecto.servicios.entity.pagos.PagoServicio;
 import com.proyecto.servicios.entity.pagos.TipoMovimiento;
+import com.proyecto.servicios.entity.pagos.ValidacionReferencia;
+import com.proyecto.servicios.repositorys.pagos.ValidacionReferenciaRepository;
 import com.proyecto.servicios.repositorys.ClienteRepository;
 import com.proyecto.servicios.repositorys.CuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.MovimientoCuentaRepository;
@@ -125,6 +127,7 @@ class PagoServicioIntegrationTest {
     @Autowired private PagoServicioRepository pagoRepository;
     @Autowired private MovimientoCuentaRepository movimientoRepository;
     @Autowired private ConciliacionPagosService conciliacionPagosService;
+    @Autowired private ValidacionReferenciaRepository validacionRepository;
 
     private Cliente cliente;
     private String numeroCuenta;
@@ -453,8 +456,30 @@ class PagoServicioIntegrationTest {
 
     private String solicitud(String cuenta, String idServicio, String idProducto, String referencia, String monto) {
         return """
-                {"numeroCuenta":"%s","idServicio":"%s","idProducto":"%s","referencia":"%s","monto":%s}
-                """.formatted(cuenta, idServicio, idProducto, referencia, monto);
+                {"numeroCuenta":"%s","idServicio":"%s","idProducto":"%s","referencia":"%s","validacionId":"%s","monto":%s}
+                """.formatted(cuenta, idServicio, idProducto, referencia, validacion(idServicio, idProducto, referencia), monto);
+    }
+
+    private Long clienteDelToken() {
+        try {
+            return tokenClienteService.autenticar(token).clienteId();
+        } catch (RuntimeException e) {
+            return cliente.getId();
+        }
+    }
+
+    /** Comprobante de validación vigente (el flujo HTTP de validación se prueba en ValidacionReferenciaIntegrationTest). */
+    private String validacion(String idServicio, String idProducto, String referencia) {
+        ValidacionReferencia v = new ValidacionReferencia();
+        v.setId(UUID.randomUUID().toString());
+        v.setClienteId(clienteDelToken());
+        v.setIdServicio(idServicio);
+        v.setIdProducto(idProducto);
+        v.setReferencia(referencia.length() > 40 ? referencia.substring(0, 40) : referencia);
+        v.setCreatedAt(LocalDateTime.now());
+        v.setExpiraEn(LocalDateTime.now().plusMinutes(10));
+        validacionRepository.save(v);
+        return v.getId();
     }
 
     private Cliente crearCliente(BigDecimal saldo, boolean activo, String estatusCuenta) {

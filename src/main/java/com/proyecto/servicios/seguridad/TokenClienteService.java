@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 public class TokenClienteService {
 
     static final String CLAIM_SCOPE = "scope";
+    static final String CLAIM_SESION = "sid";
     private static final String PREFIJO_BEARER = "Bearer ";
     private static final int LONGITUD_MINIMA_SECRETO = 32;
 
@@ -75,7 +76,9 @@ public class TokenClienteService {
             if (claims.getExpiration() == null || !StringUtils.isNumeric(claims.getSubject())) {
                 throw new AutenticacionClienteException();
             }
-            return new ClienteAutenticado(Long.valueOf(claims.getSubject()), permisos(claims.get(CLAIM_SCOPE)));
+            Object sesion = claims.get(CLAIM_SESION);
+            return new ClienteAutenticado(Long.valueOf(claims.getSubject()), permisos(claims.get(CLAIM_SCOPE)),
+                    sesion == null ? null : String.valueOf(sesion));
         } catch (JwtException | IllegalArgumentException e) {
             // Solo el tipo: el mensaje de jjwt puede incluir partes del token
             log.warn("Token de cliente rechazado: {}", e.getClass().getSimpleName());
@@ -84,19 +87,26 @@ public class TokenClienteService {
     }
 
     public String emitir(Long clienteId, Collection<String> permisos, Duration vigencia) {
+        return emitir(clienteId, permisos, vigencia, null);
+    }
+
+    /** Emite un token ligado a una sesión: al cerrar la sesión el token deja de ser aceptado aunque no haya expirado. */
+    public String emitir(Long clienteId, Collection<String> permisos, Duration vigencia, String sesionId) {
         if (llave == null) {
             throw new IllegalStateException("No hay secreto JWT configurado");
         }
         Instant ahora = clock.instant();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .issuer(emisor)
                 .subject(String.valueOf(clienteId))
                 .claim(CLAIM_SCOPE, String.join(" ", permisos))
                 .issuedAt(Date.from(ahora))
-                .expiration(Date.from(ahora.plus(vigencia)))
-                .signWith(llave)
-                .compact();
+                .expiration(Date.from(ahora.plus(vigencia)));
+        if (sesionId != null) {
+            builder.claim(CLAIM_SESION, sesionId);
+        }
+        return builder.signWith(llave).compact();
     }
 
     private Set<String> permisos(Object scope) {

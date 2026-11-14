@@ -9,11 +9,15 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+/**
+ * Valida el token Bearer y, si pertenece a una sesión, que esa sesión siga abierta (logout inmediato).
+ */
 @Component
 @RequiredArgsConstructor
 public class ClienteActualArgumentResolver implements HandlerMethodArgumentResolver {
 
     private final TokenClienteService tokenClienteService;
+    private final VerificadorSesion verificadorSesion;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -24,6 +28,10 @@ public class ClienteActualArgumentResolver implements HandlerMethodArgumentResol
     @Override
     public ClienteAutenticado resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                               NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        return tokenClienteService.autenticar(webRequest.getHeader(HttpHeaders.AUTHORIZATION));
+        ClienteAutenticado cliente = tokenClienteService.autenticar(webRequest.getHeader(HttpHeaders.AUTHORIZATION));
+        if (cliente.sesionId() != null) {
+            verificadorSesion.verificarActiva(cliente);
+        }
+        return cliente;
     }
 }
