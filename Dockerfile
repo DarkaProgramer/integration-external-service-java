@@ -14,7 +14,10 @@ WORKDIR /app
 RUN useradd --system --uid 1001 app
 COPY --from=build /app/app.jar app.jar
 USER app
-# Render asigna el puerto en la variable PORT (server.port=${PORT:8081})
-EXPOSE 8081
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+# Render asigna el puerto en la variable PORT (10000 por defecto; server.port=${PORT:8081})
+EXPOSE 10000
+# Plan free de Render: 0.1 CPU y 512 MB. Estas opciones acortan el arranque y bajan el consumo de memoria:
+# - preferIPv4Stack: escucha en 0.0.0.0 (IPv4) para que el escáner de puertos de Render detecte el servicio
+# - TieredStopAtLevel=1 + SerialGC: menos trabajo del compilador JIT y del GC con un solo núcleo
+ENV JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -XX:+ExitOnOutOfMemoryError"
 ENTRYPOINT ["java", "-jar", "app.jar"]
