@@ -50,3 +50,9 @@ El microservicio cuenta con un alto porcentaje de cobertura de pruebas automatiz
 Para ejecutar las pruebas y generar los reportes de calidad, utiliza el siguiente comando de Gradle[cite: 5]:
 ```bash
 ./gradlew test
+
+## Frontend web
+
+La aplicación web (React + Vite) está en [`frontend-web/`](frontend-web/README.md): login, catálogo, validación de
+referencia, pago con comprobante, historial y alertas de sesión. Se despliega en Render como sitio estático
+(`hasani-web` en `render.yaml`).
