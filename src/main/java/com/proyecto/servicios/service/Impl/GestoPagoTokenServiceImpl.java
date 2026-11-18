@@ -46,8 +46,8 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             GestoPagoAuthResponse response = gestoPagoAuthClient.authenticate(
                     idDistribuidor, codigoDispositivo, password);
 
-            if (response == null || response.getToken() == null) {
-                log.error("La respuesta de GestoPago no contiene token");
+            if (response == null || response.getToken() == null || response.getToken().isBlank()) {
+                log.error("La respuesta de GestoPago no contiene token: status={}", response == null ? null : response.getStatus());
                 return;
             }
 
@@ -70,7 +70,8 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
         } catch (Exception e) {
             // Solo la clase: el mensaje de Feign incluye la URL con la contraseña como parámetro
-            log.error("Error al renovar token GestoPago: causa={}", e.getClass().getSimpleName());
+            log.error("Error al renovar token GestoPago: causa={}{}", e.getClass().getSimpleName(),
+                    e instanceof feign.FeignException f && f.status() > 0 ? ", HTTP " + f.status() : "");
         }
     }
 

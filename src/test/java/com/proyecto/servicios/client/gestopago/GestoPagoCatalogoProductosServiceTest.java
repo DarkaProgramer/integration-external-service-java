@@ -1,7 +1,12 @@
 package com.proyecto.servicios.client.gestopago;
 
 import com.proyecto.servicios.client.GestoPagoProductsClient;
+import com.proyecto.servicios.config.GestoPagoBearerToken;
 import com.proyecto.servicios.config.PagosProperties;
+import feign.FeignException;
+import feign.Request;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import com.proyecto.servicios.exception.pagos.CatalogoNoDisponibleException;
 import com.proyecto.servicios.exception.pagos.MontoNoPermitidoException;
 import com.proyecto.servicios.exception.pagos.ProductoNoDisponibleException;
@@ -179,5 +184,21 @@ class GestoPagoCatalogoProductosServiceTest {
         assertThat(conPresentacion.obtener("8", "800").descripcion()).isEqualTo("Pago de agua");
         // Sin plantilla de logo
         assertThat(service.listar()).allSatisfy(p -> assertThat(p.logoUrl()).isNull());
+    }
+
+    @Test
+    @DisplayName("Si Gestopago rechaza el token (401), se pide uno nuevo y se reintenta una vez")
+    void listar_tokenRechazado_renuevaYReintenta() {
+        GestoPagoBearerToken bearer = mock(GestoPagoBearerToken.class);
+        service.setBearerToken(bearer);
+        Request peticion = Request.create(Request.HttpMethod.GET, "/sistema/service/getProductList.do", Map.of(), null,
+                StandardCharsets.UTF_8, null);
+        when(client.getProductListRaw())
+                .thenThrow(new FeignException.Unauthorized("401", peticion, null, Map.of()))
+                .thenReturn(CATALOGO);
+
+        assertThat(service.listar()).isNotEmpty();
+        verify(bearer).renovar();
+        verify(client, times(2)).getProductListRaw();
     }
 }
