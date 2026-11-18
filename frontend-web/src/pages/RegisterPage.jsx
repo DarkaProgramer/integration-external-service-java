@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import AuthLayout from './AuthLayout';
 import Field from '../components/Field';
+import SelectorConOtro from '../components/SelectorConOtro';
+import { ubicacionesApi } from '../api/ubicacionesApi';
 import Button from '../components/Button';
 import { ErrorApi } from '../components/Alert';
 import { PATRONES, reglas, validar } from '../utils/validacion';
@@ -85,6 +87,35 @@ export default function RegisterPage() {
   const [errores, setErrores] = useState({});
   const [error, setError] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const [estadosMx, setEstadosMx] = useState(null); // null = cargando; [] = no se pudo cargar (se escribe a mano)
+
+  // Catálogo de estados y municipios de México: se descarga al llegar al paso del domicilio.
+  useEffect(() => {
+    if (paso !== 1 || estadosMx) return undefined;
+    let vigente = true;
+    ubicacionesApi.estadosDeMexico()
+      .then((lista) => vigente && setEstadosMx(lista))
+      .catch(() => vigente && setEstadosMx([]));
+    return () => { vigente = false; };
+  }, [paso, estadosMx]);
+
+  const esMexico = ubicacionesApi.esMexico(v.pais);
+  const opcionesEstado = useMemo(() => (esMexico && estadosMx ? estadosMx.map((e) => e.nombre) : []), [esMexico, estadosMx]);
+  const opcionesMunicipio = useMemo(
+    () => (esMexico && estadosMx ? estadosMx.find((e) => e.nombre === v.estado)?.municipios ?? [] : []),
+    [esMexico, estadosMx, v.estado],
+  );
+
+  // Al cambiar de país se limpian estado y municipio; al cambiar de estado, el municipio.
+  const DEPENDIENTES = { pais: ['estado', 'municipio'], estado: ['municipio'] };
+  const cambiarValor = (name, value) => {
+    setV((prev) => {
+      const nuevo = { ...prev, [name]: value };
+      if (prev[name] !== value) (DEPENDIENTES[name] ?? []).forEach((k) => { nuevo[k] = ''; });
+      return nuevo;
+    });
+    if (errores[name]) setErrores((er) => ({ ...er, [name]: undefined }));
+  };
 
   const cambiar = (e) => {
     const { name, value } = e.target;
@@ -154,11 +185,17 @@ export default function RegisterPage() {
             {campo('calle', 'Calle', { className: 'col-completa', autoComplete: 'address-line1' })}
             {campo('numeroExterior', 'Número exterior')}
             {campo('numeroInterior', 'Número interior (opcional)')}
+            <SelectorConOtro label="País" name="pais" value={v.pais} opciones={ubicacionesApi.paises()}
+              onChange={cambiarValor} error={errores.pais} placeholder="Escribe el país" />
+            <SelectorConOtro key={`estado-${esMexico}-${opcionesEstado.length}`} label="Estado" name="estado" value={v.estado}
+              opciones={opcionesEstado} onChange={cambiarValor} error={errores.estado}
+              cargando={esMexico && estadosMx === null} placeholder="Escribe el estado o provincia" />
+            <SelectorConOtro key={`municipio-${v.estado}-${opcionesMunicipio.length}`} label="Municipio o alcaldía" name="municipio"
+              value={v.municipio} opciones={opcionesMunicipio} onChange={cambiarValor} error={errores.municipio}
+              cargando={esMexico && estadosMx === null} disabled={esMexico && !v.estado && Boolean(estadosMx?.length)}
+              placeholder={esMexico && !v.estado ? 'Primero elige el estado' : 'Escribe el municipio o ciudad'} />
             {campo('colonia', 'Colonia')}
             {campo('codigoPostal', 'Código postal', { inputMode: 'numeric', maxLength: 5, autoComplete: 'postal-code' })}
-            {campo('municipio', 'Municipio o alcaldía')}
-            {campo('estado', 'Estado')}
-            {campo('pais', 'País')}
           </div>
         )}
         {paso === 2 && (

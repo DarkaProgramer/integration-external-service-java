@@ -1,6 +1,7 @@
 package com.proyecto.servicios.client.gestopago;
 
 import com.proyecto.servicios.client.GestoPagoProductsClient;
+import com.proyecto.servicios.config.GestoPagoBearerToken;
 import com.proyecto.servicios.config.GestoPagoCatalogoProperties;
 import com.proyecto.servicios.config.PagosProperties;
 import com.proyecto.servicios.exception.pagos.CatalogoNoDisponibleException;
@@ -9,6 +10,8 @@ import com.proyecto.servicios.exception.pagos.ProductoNoDisponibleException;
 import com.proyecto.servicios.service.pagos.CatalogoProductosService;
 import com.proyecto.servicios.service.pagos.ProductoCatalogo;
 import com.proyecto.servicios.service.pagos.ReglaReferencia;
+import com.proyecto.servicios.exception.GestoPagoIntegrationException;
+import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,9 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
     private final Clock clock;
     private final GestoPagoCatalogoProperties presentacion;
 
+    /** Opcional: permite pedir un token nuevo a Gestopago si el actual fue rechazado (401/403). */
+    private GestoPagoBearerToken bearerToken;
+
     private volatile Catalogo catalogo = new Catalogo(Collections.emptyMap(), Instant.EPOCH);
 
     public GestoPagoCatalogoProductosService(GestoPagoProductsClient productsClient, PagosProperties properties, Clock clock) {
@@ -58,6 +64,11 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
         this.properties = properties;
         this.clock = clock;
         this.presentacion = presentacion;
+    }
+
+    @Autowired(required = false)
+    void setBearerToken(GestoPagoBearerToken bearerToken) {
+        this.bearerToken = bearerToken;
     }
 
     @Override
@@ -120,7 +131,7 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
 
     private Map<String, ProductoCatalogo> descargar() {
         try {
-            RespuestaGestoPago respuesta = RespuestaGestoPago.leer(productsClient.getProductListRaw());
+            RespuestaGestoPago respuesta = RespuestaGestoPago.leer(consultarConReintentoDeToken());
             Map<String, ProductoCatalogo> productos = new HashMap<>();
             respuesta.buscarNodos(n -> n.valor("idProducto").isPresent() && n.valor("idServicio").isPresent())
                     .forEach(n -> aProducto(n).ifPresent(p -> productos.put(llave(p.idServicio(), p.idProducto()), p)));
@@ -130,9 +141,43 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
             log.info("Catálogo de GestoPago actualizado: productos={}", productos.size());
             return Collections.unmodifiableMap(productos);
         } catch (RuntimeException e) {
-            log.error("No fue posible obtener el catálogo de GestoPago: causa={}", e.getClass().getSimpleName());
+            log.error("No fue posible obtener el catálogo de GestoPago: causa={}, detalle={}", e.getClass().getSimpleName(), diagnostico(e));
             throw new CatalogoNoDisponibleException();
         }
+    }
+
+    /** Si Gestopago rechaza el token (401/403), pide uno nuevo y reintenta una sola vez (consulta de solo lectura). */
+    private String consultarConReintentoDeToken() {
+        try {
+            return productsClient.getProductListRaw();
+        } catch (FeignException e) {
+            if ((e.status() == 401 || e.status() == 403) && bearerToken != null) {
+                log.warn("GestoPago rechazó el token del catálogo (HTTP {}); se solicita uno nuevo", e.status());
+                bearerToken.renovar();
+                return productsClient.getProductListRaw();
+            }
+            throw e;
+        }
+    }
+
+    /** Pista para los logs de Render sin exponer token, URL ni cuerpo de la respuesta. */
+    private static String diagnostico(RuntimeException e) {
+        if (e instanceof GestoPagoIntegrationException g) {
+            return "tipo=" + g.getErrorType() + " (falta GESTOPAGO_PASSWORD o GESTOPAGO_PRODUCTS_TOKEN)";
+        }
+        if (e instanceof FeignException f) {
+            if (f.status() == 401 || f.status() == 403) {
+                return "HTTP " + f.status() + ": token rechazado; revisar GESTOPAGO_PASSWORD y que GESTOPAGO_URL sea del mismo ambiente";
+            }
+            if (f.status() == 404) {
+                return "HTTP 404: revisar GESTOPAGO_URL (debe ser la URL base, sin /sistema/...)";
+            }
+            return f.status() < 0 ? "sin conexión o timeout con GESTOPAGO_URL" : "HTTP " + f.status();
+        }
+        if (e instanceof IllegalStateException) {
+            return "Gestopago respondió pero sin productos reconocibles";
+        }
+        return "error al interpretar la respuesta";
     }
 
     private Optional<ProductoCatalogo> aProducto(RespuestaGestoPago nodo) {

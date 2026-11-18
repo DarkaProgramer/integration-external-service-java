@@ -29,7 +29,9 @@ Todo se crea con el Blueprint `render.yaml`.
    Render crea `hasani-db` (PostgreSQL) y `hasani-api` (web).
 3. Render pide los valores marcados `sync: false`:
    * `GESTOPAGO_PASSWORD`: contraseña de Gestopago (idealmente una nueva, porque la anterior estuvo en el repo).
-   * `GESTOPAGO_PRODUCTS_TOKEN` y `GESTOPAGO_TX_TOKEN`: token Bearer de Gestopago.
+   * `GESTOPAGO_PRODUCTS_TOKEN` y `GESTOPAGO_TX_TOKEN`: opcionales. Con `GESTOPAGO_PASSWORD` la API pide el token
+     a Gestopago sola y lo renueva cada hora (`GestoPagoBearerToken`); estos tokens fijos solo se usan si no hay uno
+     renovado, y caducan.
    `APP_JWT_SECRET` lo genera Render solo y `DATABASE_URL` sale de la base.
 4. Esperar el primer deploy (5 a 10 minutos) y abrir `https://hasani-api.onrender.com/actuator/health` →
    `{"status":"UP"}`. Swagger: `/swagger-ui.html`.
@@ -43,3 +45,17 @@ Todo se crea con el Blueprint `render.yaml`.
   de pago o recrearla.
 * El endpoint `/api/dev/token` no existe en Render (solo con el perfil `dev`). Para una demostración en
   Render se puede agregar temporalmente la variable `SPRING_PROFILES_ACTIVE=dev`, y quitarla después.
+
+## Si el catálogo dice "No fue posible validar el producto"
+
+La API no pudo descargar `getProductList.do` de Gestopago. En **Render → hasani-api → Logs** busca
+`No fue posible obtener el catálogo de GestoPago` o `Error al renovar token GestoPago`; el campo `detalle`
+dice qué revisar:
+
+| Detalle en el log | Qué hacer |
+|---|---|
+| `tipo=AUTHENTICATION (falta GESTOPAGO_PASSWORD ...)` | Agregar `GESTOPAGO_PASSWORD` en Environment |
+| `HTTP 401` / `HTTP 403` o `Error al renovar token ... HTTP 401` | La contraseña, `GESTOPAGO_ID_DISTRIBUIDOR` o `GESTOPAGO_CODIGO_DISPOSITIVO` no corresponden al ambiente de `GESTOPAGO_URL` |
+| `HTTP 404` | `GESTOPAGO_URL` mal escrita: debe ser solo la URL base, sin `/sistema/...` |
+| `sin conexión o timeout` | `GESTOPAGO_URL` no responde desde Render |
+| `sin productos reconocibles` | Gestopago respondió, pero con un error o un formato distinto |

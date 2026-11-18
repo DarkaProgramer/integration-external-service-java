@@ -5,6 +5,7 @@ import com.proyecto.servicios.exception.GestoPagoIntegrationException;
 import feign.RequestInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
@@ -20,13 +21,16 @@ public class GestoPagoProductsFeignConfig {
 
     @Bean
     public RequestInterceptor gestoPagoProductsAuthInterceptor(
-            @Value("${gestopago.products.bearer-token:}") String bearerToken) {
+            @Value("${gestopago.products.bearer-token:}") String bearerToken,
+            ObjectProvider<GestoPagoBearerToken> tokenDinamico) {
         return template -> {
-            if (StringUtils.isBlank(bearerToken)) {
-                log.error("No se ha configurado gestopago.products.bearer-token");
+            GestoPagoBearerToken proveedor = tokenDinamico.getIfAvailable();
+            String token = proveedor != null ? proveedor.obtener(bearerToken) : bearerToken;
+            if (StringUtils.isBlank(token)) {
+                log.error("No se ha configurado gestopago.products.bearer-token ni GESTOPAGO_PASSWORD");
                 throw new GestoPagoIntegrationException(GestoPagoErrorType.AUTHENTICATION);
             }
-            template.header(HttpHeaders.AUTHORIZATION, BEARER_PREFIX + bearerToken);
+            template.header(HttpHeaders.AUTHORIZATION, BEARER_PREFIX + token);
         };
     }
 }
