@@ -130,18 +130,27 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
     }
 
     private Map<String, ProductoCatalogo> descargar() {
+        String cuerpo = null;
         try {
-            RespuestaGestoPago respuesta = RespuestaGestoPago.leer(consultarConReintentoDeToken());
+            cuerpo = consultarConReintentoDeToken();
+            RespuestaGestoPago respuesta = RespuestaGestoPago.leer(cuerpo);
             Map<String, ProductoCatalogo> productos = new HashMap<>();
             respuesta.buscarNodos(n -> n.valor("idProducto").isPresent() && n.valor("idServicio").isPresent())
                     .forEach(n -> aProducto(n).ifPresent(p -> productos.put(llave(p.idServicio(), p.idProducto()), p)));
             if (productos.isEmpty()) {
+                log.error("GestoPago respondió sin productos: codigo={}, mensaje={}",
+                        recortar(respuesta.buscar("codigo", "code", "codigoRespuesta", "status", "estatus").orElse("-")),
+                        recortar(respuesta.buscar("mensaje", "message", "descripcion", "error", "msg").orElse("-")));
                 throw new IllegalStateException("catálogo vacío");
             }
             log.info("Catálogo de GestoPago actualizado: productos={}", productos.size());
             return Collections.unmodifiableMap(productos);
         } catch (RuntimeException e) {
             log.error("No fue posible obtener el catálogo de GestoPago: causa={}, detalle={}", e.getClass().getSimpleName(), diagnostico(e));
+            if (e instanceof RespuestaGestoPago.RespuestaIlegibleException) {
+                // El catálogo no lleva datos sensibles: el inicio del cuerpo ayuda a saber qué devolvió el proveedor
+                log.error("Inicio de la respuesta de GestoPago: {}", recortar(cuerpo));
+            }
             throw new CatalogoNoDisponibleException();
         }
     }
@@ -160,6 +169,14 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
         }
     }
 
+    private static String recortar(String texto) {
+        if (texto == null) {
+            return "(vacía)";
+        }
+        String limpio = texto.replaceAll("\\s+", " ").strip();
+        return limpio.length() > 200 ? limpio.substring(0, 200) + "..." : limpio;
+    }
+
     /** Pista para los logs de Render sin exponer token, URL ni cuerpo de la respuesta. */
     private static String diagnostico(RuntimeException e) {
         if (e instanceof GestoPagoIntegrationException g) {
@@ -173,6 +190,9 @@ public class GestoPagoCatalogoProductosService implements CatalogoProductosServi
                 return "HTTP 404: revisar GESTOPAGO_URL (debe ser la URL base, sin /sistema/...)";
             }
             return f.status() < 0 ? "sin conexión o timeout con GESTOPAGO_URL" : "HTTP " + f.status();
+        }
+        if (e instanceof RespuestaGestoPago.RespuestaIlegibleException) {
+            return "Gestopago respondió algo que no es XML ni JSON (¿GESTOPAGO_URL apunta a una página web?)";
         }
         if (e instanceof IllegalStateException) {
             return "Gestopago respondió pero sin productos reconocibles";

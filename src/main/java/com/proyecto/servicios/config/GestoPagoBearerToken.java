@@ -38,13 +38,19 @@ public class GestoPagoBearerToken {
                                 @Value("${gestopago.auth.id-distribuidor}") Integer idDistribuidor,
                                 @Value("${gestopago.auth.codigo-dispositivo}") String codigoDispositivo,
                                 @Value("${gestopago.auth.password:}") String password,
-                                @Value("${gestopago.auth.refresh-rate-ms:3600000}") long refrescoMs) {
+                                @Value("${gestopago.auth.refresh-rate-ms:3600000}") long refrescoMs,
+                                @Value("${gestopago.base-url:}") String urlBase,
+                                @Value("${gestopago.products.bearer-token:}") String tokenProductos) {
         this.tokenService = tokenService;
         this.idDistribuidor = idDistribuidor;
         this.codigoDispositivo = codigoDispositivo;
         this.password = password;
         // Se considera vigente hasta dos ciclos de renovación (si una renovación falla, aún hay margen)
         this.vigencia = Duration.ofMillis(refrescoMs * 2);
+        // Resumen al arrancar (sin secretos) para revisar en los logs de Render qué variables llegaron
+        log.info("Configuración GestoPago: url={}, idDistribuidor={}, GESTOPAGO_PASSWORD={}, GESTOPAGO_PRODUCTS_TOKEN={}",
+                urlBase, idDistribuidor, StringUtils.isNotBlank(password) ? "configurada" : "FALTA",
+                StringUtils.isNotBlank(tokenProductos) ? "configurado" : "no");
     }
 
     /**

@@ -22,7 +22,7 @@ class GestoPagoBearerTokenTest {
     private final GestoPagoTokenService tokenService = mock(GestoPagoTokenService.class);
 
     private GestoPagoBearerToken conPassword(String password) {
-        return new GestoPagoBearerToken(tokenService, 83, "DISP", password, HORA);
+        return new GestoPagoBearerToken(tokenService, 83, "DISP", password, HORA, "https://gp.test", "");
     }
 
     private static Optional<GestoPagoToken> guardado(String valor, LocalDateTime actualizado) {
