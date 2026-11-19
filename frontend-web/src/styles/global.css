@@ -141,7 +141,7 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
 .logo-iniciales { display: inline-grid; place-items: center; color: #fff; font-weight: 700; border: 0; }
 
 /* ---------- Layout de la app ---------- */
-.barra { position: sticky; top: 0; z-index: 10; background: var(--superficie); border-bottom: 1px solid var(--borde); box-shadow: 0 1px 8px rgb(0 0 0 / .08); }
+.barra { position: relative; z-index: 10; background: var(--superficie); border-bottom: 1px solid var(--borde); box-shadow: 0 1px 8px rgb(0 0 0 / .08); }
 .barra-contenido { max-width: 1120px; margin: 0 auto; padding: .75rem 1rem; display: flex; align-items: center; gap: 1rem; }
 .marca { display: inline-flex; align-items: center; gap: .55rem; font-weight: 800; font-size: 1.1rem; color: var(--texto); text-decoration: none !important; }
 .marca-logo { width: 2rem; height: 2rem; border-radius: 9px; background: var(--primario); color: #fff; display: grid; place-items: center; font-weight: 800; }
@@ -296,4 +296,26 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
   .barra, .no-imprimir, .acciones, .volver, .stepper, .pago-producto, .alerta { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   .comprobante { box-shadow: none !important; border: 1px solid #ccc; }
+}
+
+/* ---------- Catálogo: tarjetas con el color de cada marca ---------- */
+.tarjeta-producto { position: relative; overflow: hidden; padding-top: 1.4rem; }
+.producto-banda { position: absolute; inset: 0 0 auto 0; height: 64px; background: linear-gradient(135deg, color-mix(in srgb, var(--marca) 28%, transparent), color-mix(in srgb, var(--marca) 6%, transparent)); border-bottom: 1px solid color-mix(in srgb, var(--marca) 25%, transparent); }
+.tarjeta-producto > *:not(.producto-banda) { position: relative; }
+.tarjeta-producto:hover { border-color: var(--marca); box-shadow: 0 10px 24px color-mix(in srgb, var(--marca) 22%, transparent); }
+.tarjeta-producto .logo { border-radius: 16px; border: 0; background: transparent; box-shadow: 0 4px 12px rgb(0 0 0 / .18); }
+.tarjeta-producto .chip-chico { max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--superficie); color: var(--texto-suave); border: 1px solid var(--borde); }
+.tarjeta-producto h3 { margin: .35rem 0 0; font-size: 1.05rem; }
+.producto-descripcion { min-height: 2.6em; }
+.producto-precio { border-top: 1px solid var(--borde); }
+.producto-monto { display: flex; flex-direction: column; font-size: 1.1rem; line-height: 1.2; }
+.producto-monto small { font-size: .7rem; font-weight: 500; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .05em; }
+.producto-pagar { font-size: .85rem; font-weight: 700; color: var(--marca-texto, #fff); background: var(--marca); padding: .35rem .75rem; border-radius: 999px; white-space: nowrap; transition: filter .15s; }
+.tarjeta-producto:hover .producto-pagar { filter: brightness(1.1); }
+.pago-producto .logo { border: 0; background: transparent; }
+@media (max-width: 640px) {
+  .tarjeta-producto .producto-precio { flex-wrap: wrap; gap: .4rem; }
+  .producto-pagar { padding: .3rem .55rem; font-size: .78rem; margin-left: auto; }
+  .producto-monto { font-size: 1rem; }
+  .tarjeta-producto .logo { width: 44px !important; height: 44px !important; }
 }
