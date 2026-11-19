@@ -19,6 +19,8 @@ import com.proyecto.servicios.repositorys.pagos.MovimientoCuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.PagoServicioRepository;
 import com.proyecto.servicios.repositorys.pagos.ValidacionReferenciaRepository;
 import com.proyecto.servicios.seguridad.ClienteAutenticado;
+import com.proyecto.servicios.service.pagos.AutorizacionTarjeta;
+import com.proyecto.servicios.service.pagos.ProcesadorTarjetas;
 import com.proyecto.servicios.service.pagos.ProductoCatalogo;
 import com.proyecto.servicios.service.pagos.ResultadoProveedor;
 import lombok.RequiredArgsConstructor;
@@ -56,16 +58,22 @@ public class PagoServicioTransacciones {
     private final ValidacionReferenciaRepository validacionRepository;
     private final PagosProperties properties;
     private final Clock clock;
+    private final ProcesadorTarjetas procesadorTarjetas;
+
+    static final String METODO_TARJETA = "TARJETA_DEBITO";
+    static final String METODO_SALDO = "SALDO";
 
     /**
-     * Paso 1: valida cliente y cuenta, descuenta el saldo y registra el pago PENDIENTE, todo en una transacción
+     * Paso 1: valida cliente y cuenta, descuenta el saldo (o asocia el cargo ya autorizado a la tarjeta de débito)
+     * y registra el pago PENDIENTE, todo en una transacción
      * con la fila de la cuenta bloqueada (SELECT ... FOR UPDATE). Si algo falla, no queda cargo ni registro.
      *
      * @return el pago existente si otra petición con la misma llave se adelantó, o el nuevo pago
      */
     @Transactional
     public Reserva reservarFondos(ClienteAutenticado cliente, String idempotencyKey, String huella,
-                                  PagoServicioRequestDto solicitud, ProductoCatalogo producto) {
+                                  PagoServicioRequestDto solicitud, ProductoCatalogo producto,
+                                  AutorizacionTarjeta tarjeta) {
         Cuenta cuenta = cuentaRepository.findByNumeroCuentaParaActualizar(solicitud.getNumeroCuenta())
                 .orElseThrow(OperacionNoAutorizadaException::new);
         validarTitularYEstado(cliente, cuenta);
@@ -87,11 +95,13 @@ public class PagoServicioTransacciones {
         if (acumuladoHoy.add(monto).compareTo(properties.getLimiteDiario()) > 0) {
             throw new LimiteDiarioExcedidoException();
         }
-        if (cuenta.getSaldo().compareTo(monto) < 0) {
-            throw new SaldoInsuficienteException();
+        if (tarjeta == null) {
+            // Método anterior (app móvil): cargo al saldo de la cuenta
+            if (cuenta.getSaldo().compareTo(monto) < 0) {
+                throw new SaldoInsuficienteException();
+            }
+            cuenta.setSaldo(cuenta.getSaldo().subtract(monto));
         }
-
-        cuenta.setSaldo(cuenta.getSaldo().subtract(monto));
 
         PagoServicio pago = new PagoServicio();
         pago.setFolio(UUID.randomUUID().toString());
@@ -107,13 +117,23 @@ public class PagoServicioTransacciones {
         pago.setMonto(monto);
         pago.setEstatus(EstatusPago.PENDIENTE);
         pago.setCreatedAt(ahora);
+        if (tarjeta != null) {
+            pago.setMetodoPago(METODO_TARJETA);
+            pago.setTarjetaMarca(tarjeta.marca());
+            pago.setTarjetaUltimos4(tarjeta.ultimos4());
+            pago.setAutorizacionTarjeta(tarjeta.codigo());
+        } else {
+            pago.setMetodoPago(METODO_SALDO);
+        }
         pagoRepository.save(pago);
         // La validación de la referencia se consume en la misma transacción: si otra petición la usó primero,
         // se revierte todo (sin cargo)
         if (validacionRepository.marcarUsada(solicitud.getValidacionId().toLowerCase(), pago.getFolio(), ahora) != 1) {
             throw new ValidacionYaUsadaException();
         }
-        movimientoRepository.save(new MovimientoCuenta(cuenta, pago, TipoMovimiento.CARGO, monto));
+        if (tarjeta == null) {
+            movimientoRepository.save(new MovimientoCuenta(cuenta, pago, TipoMovimiento.CARGO, monto));
+        }
         return new Reserva(pago, true);
     }
 
@@ -164,6 +184,12 @@ public class PagoServicioTransacciones {
     }
 
     private void devolverFondos(PagoServicio pago) {
+        if (METODO_TARJETA.equals(pago.getMetodoPago())) {
+            // Pagado con tarjeta: el reembolso va a la tarjeta, no al saldo. El estatus final evita repetirlo.
+            procesadorTarjetas.reembolsar(new AutorizacionTarjeta(pago.getTarjetaMarca(), pago.getTarjetaUltimos4(),
+                    pago.getAutorizacionTarjeta()), pago.getMonto());
+            return;
+        }
         // La restricción única (pago_id, tipo) es la última defensa contra una doble devolución
         if (movimientoRepository.existsByPagoIdAndTipo(pago.getId(), TipoMovimiento.REVERSO)) {
             return;

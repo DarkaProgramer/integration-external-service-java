@@ -14,9 +14,11 @@ import PaymentResult from '../components/PaymentResult';
 import EmptyState from '../components/EmptyState';
 import { formatoMoneda, nuevaIdempotencyKey } from '../utils/formato';
 import { validarReferencia } from '../utils/validacion';
+import { formatearNumero, formatearVencimiento, marca, tarjetaParaApi, validarTarjeta } from '../utils/tarjeta';
 
 const VIGENCIA_VALIDACION_MS = 10 * 60 * 1000;
-const PASOS = ['Referencia', 'Confirmar', 'Comprobante'];
+const PASOS = ['Referencia', 'Pago con tarjeta', 'Comprobante'];
+const TARJETA_VACIA = { numero: '', titular: '', vencimiento: '', cvv: '' };
 
 function mensajeValidacion(error) {
   if (error?.status === 503) {
@@ -28,7 +30,7 @@ function mensajeValidacion(error) {
 export default function PayPage() {
   const { identificador } = useParams();
   const navigate = useNavigate();
-  const { perfil, recargarPerfil } = useAuth();
+  const { perfil } = useAuth();
   const { datos: producto, cargando, error: errorProducto, recargar } = useAsync(() => catalogoApi.producto(identificador), [identificador]);
 
   const [paso, setPaso] = useState(0);
@@ -43,6 +45,8 @@ export default function PayPage() {
   const [resultado, setResultado] = useState(null);
   const [consultando, setConsultando] = useState(false);
   const [restante, setRestante] = useState(0);
+  // Datos de la tarjeta: solo en memoria durante el pago (no se guardan en el navegador ni en el servidor)
+  const [tarjeta, setTarjeta] = useState(TARJETA_VACIA);
   const llaveIdempotencia = useRef(null);
 
   // Cuenta regresiva de la validación (10 min, un solo uso).
@@ -60,11 +64,14 @@ export default function PayPage() {
     return <EmptyState icono="?" titulo="Servicio no encontrado" accion={<Link className="btn btn-primario" to="/">Ver catálogo</Link>}>Puede que ya no esté disponible.</EmptyState>;
   }
 
-  // Pago de contado: si el proveedor informa un adeudo se paga completo; el cargo es al saldo de la cuenta (sin crédito).
+  // Pago de contado: si el proveedor informa un adeudo se paga completo, en un solo cargo a la tarjeta de débito.
   const adeudo = validacion?.montoAdeudo ? Number(validacion.montoAdeudo) : null;
   const montoFinal = adeudo ?? (producto.montoVariable ? Number(monto) : Number(validacion?.precio ?? producto.precio));
-  const saldo = perfil?.saldo == null ? null : Number(perfil.saldo);
-  const sinSaldo = saldo != null && montoFinal > 0 && montoFinal > saldo;
+  const marcaTarjeta = marca(tarjeta.numero);
+  const cambiarTarjeta = (campo, valor) => {
+    setTarjeta((t) => ({ ...t, [campo]: valor }));
+    if (errores[campo]) setErrores((er) => ({ ...er, [campo]: undefined }));
+  };
   const vencida = validacion && restante <= 0 && paso === 1;
 
   const validarFormulario = () => {
@@ -75,7 +82,6 @@ export default function PayPage() {
   };
 
   const validarMonto = () => {
-    if (sinSaldo) return 'Saldo insuficiente: solo se aceptan pagos de contado con tu saldo disponible';
     if (adeudo != null || !producto.montoVariable) return null;
     const n = Number(monto);
     if (!monto || !(n > 0)) return 'Escribe el monto a pagar';
@@ -107,8 +113,9 @@ export default function PayPage() {
 
   const pagar = async () => {
     const errMonto = validarMonto();
-    setErrores({ monto: errMonto });
-    if (errMonto) return;
+    const errTarjeta = validarTarjeta(tarjeta);
+    setErrores({ monto: errMonto, ...errTarjeta });
+    if (errMonto || Object.keys(errTarjeta).length) return;
     setPagando(true);
     setErrorPago(null);
     try {
@@ -120,13 +127,14 @@ export default function PayPage() {
           referencia: referencia.trim(),
           validacionId: validacion.validacionId,
           monto: montoFinal,
+          tarjeta: tarjetaParaApi(tarjeta),
         },
         llaveIdempotencia.current,
       );
       setResultado(pago);
       setPaso(2);
+      setTarjeta(TARJETA_VACIA);
       llaveIdempotencia.current = null;
-      recargarPerfil().catch(() => {});
     } catch (err) {
       // Error de red: se conserva la misma llave para que "Reintentar" no cobre dos veces.
       setErrorPago(err);
@@ -139,7 +147,6 @@ export default function PayPage() {
     setConsultando(true);
     try {
       setResultado(await pagosApi.consultar(resultado.folio));
-      recargarPerfil().catch(() => {});
     } catch (err) {
       setErrorPago(err);
     } finally {
@@ -150,6 +157,7 @@ export default function PayPage() {
   const reiniciar = () => {
     setPaso(0);
     setValidacion(null);
+    setTarjeta(TARJETA_VACIA);
     setResultado(null);
     setErrorPago(null);
     setErrorValidacion(null);
@@ -195,7 +203,7 @@ export default function PayPage() {
 
       {paso === 1 && validacion && (
         <div className="tarjeta">
-          <h2>Confirma tu pago</h2>
+          <h2>Paga con tu tarjeta de débito</h2>
           <Alert tipo="exito">Referencia validada. {vencida ? '' : `Tienes ${Math.floor(restante / 60000)}:${String(Math.floor(restante / 1000) % 60).padStart(2, '0')} min para pagar.`}</Alert>
           {producto.montoVariable && adeudo == null && (
             <Field label="Monto a pagar (MXN)" type="number" step="0.01" inputMode="decimal" value={monto}
@@ -208,18 +216,25 @@ export default function PayPage() {
               ['Producto', validacion.producto || producto.nombre],
               ['Referencia', validacion.referencia],
               ['Adeudo total', adeudo != null ? formatoMoneda(adeudo) : null],
-              ['Forma de pago', 'Contado: cargo único a tu saldo (sin crédito ni pagos parciales)'],
-              ['Cuenta de cargo', perfil?.numeroCuenta ? `•••• ${perfil.numeroCuenta.slice(-4)}` : null],
-              ['Saldo disponible', formatoMoneda(perfil?.saldo)],
-              ['Saldo después del pago', saldo != null && montoFinal > 0 && !sinSaldo ? formatoMoneda(saldo - montoFinal) : null],
+              ['Forma de pago', 'Tarjeta de débito, de contado (un solo cargo, sin meses ni crédito)'],
             ]}
           />
           <div className="total"><span>Total a pagar</span><strong>{montoFinal > 0 ? formatoMoneda(montoFinal) : '—'}</strong></div>
-          {sinSaldo && (
-            <Alert tipo="error" titulo="Saldo insuficiente">
-              Te faltan {formatoMoneda(montoFinal - saldo)}. Solo se aceptan pagos de contado con el saldo de tu cuenta: no hay crédito ni pagos parciales.
-            </Alert>
-          )}
+          <div className="formulario tarjeta-pago">
+            <Field label={`Número de tarjeta${marcaTarjeta && marcaTarjeta !== 'AMEX' ? ` · ${marcaTarjeta}` : ''}`} value={tarjeta.numero}
+              inputMode="numeric" autoComplete="cc-number" placeholder="0000 0000 0000 0000" maxLength={19}
+              onChange={(e) => cambiarTarjeta('numero', formatearNumero(e.target.value))} error={errores.numero}
+              ayuda="Solo tarjetas de débito Visa o Mastercard" />
+            <Field label="Nombre del titular" value={tarjeta.titular} autoComplete="cc-name" placeholder="Como aparece en la tarjeta"
+              onChange={(e) => cambiarTarjeta('titular', e.target.value.toUpperCase())} error={errores.titular} />
+            <div className="rejilla-2">
+              <Field label="Vencimiento" value={tarjeta.vencimiento} inputMode="numeric" autoComplete="cc-exp" placeholder="MM/AA" maxLength={5}
+                onChange={(e) => cambiarTarjeta('vencimiento', formatearVencimiento(e.target.value))} error={errores.vencimiento} />
+              <Field label="CVV" type="password" value={tarjeta.cvv} inputMode="numeric" autoComplete="cc-csc" placeholder="123" maxLength={3}
+                onChange={(e) => cambiarTarjeta('cvv', e.target.value.replace(/\D/g, '').slice(0, 3))} error={errores.cvv} />
+            </div>
+            <p className="texto-chico texto-suave">🔒 No guardamos el número completo ni el CVV: en tu comprobante solo aparecen los últimos 4 dígitos.</p>
+          </div>
           {vencida && <Alert tipo="aviso" titulo="La validación venció">Vuelve a validar la referencia para continuar.</Alert>}
           {errorPago && (
             <ErrorApi error={errorPago.esDeRed ? { ...errorPago, message: `${errorPago.message} Puedes reintentar: no se cobrará dos veces.` } : errorPago} />
@@ -228,7 +243,7 @@ export default function PayPage() {
             <Button variante="secundario" onClick={reiniciar} disabled={pagando}>Cambiar referencia</Button>
             {vencida
               ? <Button onClick={reiniciar}>Validar de nuevo</Button>
-              : <Button onClick={pagar} cargando={pagando} disabled={!validacion.validacionId || sinSaldo}>{pagando ? 'Procesando pago…' : errorPago?.esDeRed ? 'Reintentar pago' : `Pagar ${montoFinal > 0 ? formatoMoneda(montoFinal) : ''}`}</Button>}
+              : <Button onClick={pagar} cargando={pagando} disabled={!validacion.validacionId}>{pagando ? 'Procesando pago…' : errorPago?.esDeRed ? 'Reintentar pago' : `Pagar ${montoFinal > 0 ? formatoMoneda(montoFinal) : ''}`}</Button>}
           </div>
         </div>
       )}

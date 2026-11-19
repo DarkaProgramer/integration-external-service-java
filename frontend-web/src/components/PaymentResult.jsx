@@ -25,6 +25,8 @@ export default function PaymentResult({ pago, children }) {
           ['Servicio', pago.servicio],
           ['Producto', pago.producto],
           ['Referencia', pago.referencia],
+          ['Forma de pago', pago.tarjeta ? `Tarjeta de débito ${pago.tarjeta} · contado` : null],
+          ['Autorización bancaria', pago.autorizacion && <code key="a">{pago.autorizacion}</code>],
           ['Fecha', formatoFecha(pago.fechaOperacion)],
         ]}
       />

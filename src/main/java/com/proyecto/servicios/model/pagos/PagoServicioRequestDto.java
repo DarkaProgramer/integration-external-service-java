@@ -1,5 +1,6 @@
 package com.proyecto.servicios.model.pagos;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -7,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 
@@ -44,4 +46,12 @@ public class PagoServicioRequestDto {
     @DecimalMax(value = "9999999.99", message = "El monto excede el máximo permitido")
     @Digits(integer = 7, fraction = 2, message = "El monto admite como máximo 2 decimales")
     private BigDecimal monto;
+
+    /**
+     * Tarjeta de débito con la que se cobra el pago (de contado, en una sola exhibición). Si no se envía,
+     * se usa el método anterior: cargo al saldo de la cuenta (lo usa la app móvil).
+     */
+    @Valid
+    @ToString.Exclude
+    private TarjetaDto tarjeta;
 }

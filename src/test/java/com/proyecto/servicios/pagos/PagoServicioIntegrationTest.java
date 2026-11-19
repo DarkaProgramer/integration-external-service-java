@@ -392,6 +392,44 @@ class PagoServicioIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("Pago con tarjeta de débito: no toca el saldo y el comprobante solo muestra los últimos 4 dígitos")
+    void pagoConTarjetaDebito() throws Exception {
+        String folio = folio(pagar(UUID.randomUUID().toString(), conTarjeta(solicitud("1", "100", "5512345678", "100.00"),
+                "4000 1234 5675 9010"), 201)
+                .andExpect(jsonPath("$.datos.estatus").value("APROBADA"))
+                .andExpect(jsonPath("$.datos.metodoPago").value("TARJETA_DEBITO"))
+                .andExpect(jsonPath("$.datos.tarjeta").value("VISA •••• 9010"))
+                .andExpect(jsonPath("$.datos.autorizacion").isNotEmpty())
+                .andReturn());
+
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
+        PagoServicio pago = pagoRepository.findByFolio(folio).orElseThrow();
+        assertThat(pago.getTarjetaUltimos4()).isEqualTo("9010");
+        assertThat(movimientoRepository.findByPagoIdOrderByIdAsc(pago.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Tarjeta de crédito o declinada por el banco: no se registra el pago ni se envía al proveedor")
+    void tarjetaCreditoODeclinada() throws Exception {
+        pagar(UUID.randomUUID().toString(), conTarjeta(solicitud("1", "100", "5512345678", "100.00"), "4111111111111111"), 422)
+                .andExpect(jsonPath("$.error").value("Tarjeta inválida"));
+        pagar(UUID.randomUUID().toString(), conTarjeta(solicitud("1", "100", "5512345678", "100.00"), "4000123456740002"), 402);
+
+        assertThat(PETICIONES_SEND_TX).isEmpty();
+        assertThat(pagoRepository.findAll()).noneMatch(p -> p.getClienteId().equals(cliente.getId()));
+    }
+
+    @Test
+    @DisplayName("Proveedor rechaza un pago con tarjeta: queda RECHAZADA, se reembolsa a la tarjeta y el saldo no cambia")
+    void rechazoConTarjeta() throws Exception {
+        RESPUESTA_SEND_TX.set(new RespuestaSimulada(200, "{\"codigo\":\"05\",\"mensaje\":\"Referencia invalida\"}", 0));
+
+        pagar(UUID.randomUUID().toString(), conTarjeta(solicitud("1", "100", "5512345678", "100.00"), "5200123456754321"), 422)
+                .andExpect(jsonPath("$.datos.estatus").value("RECHAZADA"));
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
+    }
+
     // ─────────────────────────────────────────────
     //  Helpers
     // ─────────────────────────────────────────────
@@ -448,6 +486,13 @@ class PagoServicioIntegrationTest {
 
     private String solicitud(String idServicio, String idProducto, String referencia, String monto) {
         return solicitud(numeroCuenta, idServicio, idProducto, referencia, monto);
+    }
+
+    private static String conTarjeta(String solicitud, String numero) {
+        String tarjeta = """
+                ,"tarjeta":{"numero":"%s","titular":"Angel Perez Lopez","mesVencimiento":12,"anioVencimiento":2030,"cvv":"123"}}
+                """.formatted(numero).strip();
+        return solicitud.strip().replaceFirst("}$", tarjeta);
     }
 
     private String solicitudCuenta(String cuenta) {

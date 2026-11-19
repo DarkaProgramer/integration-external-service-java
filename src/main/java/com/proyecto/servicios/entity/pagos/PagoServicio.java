@@ -81,6 +81,19 @@ public class PagoServicio {
     @Column(name = "codigo_proveedor", length = 30)
     private String codigoProveedor;
 
+    /** TARJETA_DEBITO o SALDO (método anterior). De la tarjeta solo se guardan marca y últimos 4 dígitos. */
+    @Column(name = "metodo_pago", length = 20)
+    private String metodoPago;
+
+    @Column(name = "tarjeta_marca", length = 20)
+    private String tarjetaMarca;
+
+    @Column(name = "tarjeta_ultimos4", length = 4)
+    private String tarjetaUltimos4;
+
+    @Column(name = "autorizacion_tarjeta", length = 12)
+    private String autorizacionTarjeta;
+
     @Column(name = "intentos_conciliacion", nullable = false)
     private int intentosConciliacion;
 

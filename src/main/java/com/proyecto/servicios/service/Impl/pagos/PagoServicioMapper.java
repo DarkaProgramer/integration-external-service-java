@@ -23,6 +23,9 @@ public class PagoServicioMapper {
                 .referencia(enmascarar(pago.getReferencia()))
                 .monto(pago.getMonto())
                 .folioProveedor(pago.getFolioProveedor())
+                .metodoPago(pago.getMetodoPago())
+                .tarjeta(pago.getTarjetaUltimos4() == null ? null : pago.getTarjetaMarca() + " •••• " + pago.getTarjetaUltimos4())
+                .autorizacion(pago.getAutorizacionTarjeta())
                 .fechaOperacion(pago.getCreatedAt())
                 .build();
     }

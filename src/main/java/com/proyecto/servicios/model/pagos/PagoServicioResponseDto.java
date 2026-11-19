@@ -27,5 +27,11 @@ public class PagoServicioResponseDto {
     private String referencia;
     private BigDecimal monto;
     private String folioProveedor;
+    /** TARJETA_DEBITO o SALDO. */
+    private String metodoPago;
+    /** Tarjeta enmascarada, p. ej. "VISA •••• 1234". */
+    private String tarjeta;
+    /** Código de autorización del banco. */
+    private String autorizacion;
     private LocalDateTime fechaOperacion;
 }

@@ -4,7 +4,6 @@ import { useAuth } from '../auth/AuthContext';
 import { useAlertasSesion } from '../hooks/useAlertasSesion';
 import SessionAlertModal from './SessionAlertModal';
 import Alert from './Alert';
-import { formatoMoneda } from '../utils/formato';
 
 export default function Layout() {
   const { perfil, logout, estado, otrasSesiones, limpiarOtrasSesiones } = useAuth();
@@ -38,7 +37,7 @@ export default function Layout() {
               <NavLink key={to} to={to} end={to === '/'} onClick={() => setMenu(false)}>{texto}</NavLink>
             ))}
             <div className="nav-usuario">
-              <span className="saldo" title="Saldo disponible">{formatoMoneda(perfil?.saldo)}</span>
+              {perfil?.nombre && <span className="saldo">{perfil.nombre}</span>}
               <button className="btn btn-texto" onClick={salir} disabled={saliendo}>{saliendo ? 'Saliendo…' : 'Cerrar sesión'}</button>
             </div>
           </nav>

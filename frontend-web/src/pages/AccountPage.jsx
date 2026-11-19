@@ -7,7 +7,7 @@ import DetailList from '../components/DetailList';
 import Button from '../components/Button';
 import Spinner from '../components/Spinner';
 import { ErrorApi } from '../components/Alert';
-import { formatoFecha, formatoMoneda } from '../utils/formato';
+import { formatoFecha } from '../utils/formato';
 
 export default function AccountPage() {
   const { perfil } = useAuth();
@@ -41,7 +41,6 @@ export default function AccountPage() {
               ['Teléfono', perfil?.telefonoMovil],
               ['Número de cuenta', perfil?.numeroCuenta],
               ['Estatus', perfil?.estatusCuenta],
-              ['Saldo', formatoMoneda(perfil?.saldo)],
             ]}
           />
         </section>

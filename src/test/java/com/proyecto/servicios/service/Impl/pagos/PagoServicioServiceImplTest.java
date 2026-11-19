@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,6 +56,7 @@ class PagoServicioServiceImplTest {
     @Mock private PagoServicioTransacciones transacciones;
     @Mock private PagoServicioRepository pagoRepository;
     @Mock private com.proyecto.servicios.service.pagos.ValidacionReferenciaService validacionReferencia;
+    @Mock private com.proyecto.servicios.service.pagos.ProcesadorTarjetas tarjetas;
 
     private PagoServicioServiceImpl service;
     private String llave;
@@ -62,7 +64,7 @@ class PagoServicioServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new PagoServicioServiceImpl(catalogo, gateway, transacciones, pagoRepository, new PagoServicioMapper(), validacionReferencia);
+        service = new PagoServicioServiceImpl(catalogo, gateway, transacciones, pagoRepository, new PagoServicioMapper(), validacionReferencia, tarjetas);
         llave = UUID.randomUUID().toString();
         solicitud = new PagoServicioRequestDto();
         solicitud.setNumeroCuenta("1234567890");
@@ -78,7 +80,7 @@ class PagoServicioServiceImplTest {
         PagoServicio aprobado = pago(EstatusPago.APROBADA);
         when(pagoRepository.findByClienteIdAndIdempotencyKey(1L, llave)).thenReturn(Optional.empty());
         when(catalogo.validarProductoYMonto("1", "100", solicitud.getMonto())).thenReturn(PRODUCTO);
-        when(transacciones.reservarFondos(eq(CLIENTE), eq(llave), anyString(), eq(solicitud), eq(PRODUCTO)))
+        when(transacciones.reservarFondos(eq(CLIENTE), eq(llave), anyString(), eq(solicitud), eq(PRODUCTO), isNull()))
                 .thenReturn(new PagoServicioTransacciones.Reserva(pendiente, true));
         ResultadoProveedor ok = ResultadoProveedor.aprobada("GP-1", "0");
         when(gateway.enviarPago(any())).thenReturn(ok);
@@ -90,7 +92,7 @@ class PagoServicioServiceImplTest {
         assertThat(resultado.pago().getEstatus()).isEqualTo(EstatusPago.APROBADA);
         InOrder orden = inOrder(catalogo, transacciones, gateway);
         orden.verify(catalogo).validarProductoYMonto(any(), any(), any());
-        orden.verify(transacciones).reservarFondos(any(), any(), any(), any(), any());
+        orden.verify(transacciones).reservarFondos(any(), any(), any(), any(), any(), any());
         orden.verify(gateway).enviarPago(any());
         orden.verify(transacciones).aplicarResultado(any(), any());
     }
@@ -141,7 +143,7 @@ class PagoServicioServiceImplTest {
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(ganador));
         when(catalogo.validarProductoYMonto(any(), any(), any())).thenReturn(PRODUCTO);
-        when(transacciones.reservarFondos(any(), any(), any(), any(), any()))
+        when(transacciones.reservarFondos(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("uq_pagos_cliente_idempotency"));
 
         ResultadoPagoServicio resultado = service.pagar(CLIENTE, llave, solicitud);

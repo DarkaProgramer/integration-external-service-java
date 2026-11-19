@@ -6,6 +6,6 @@ import org.springframework.http.HttpStatus;
 public class SaldoInsuficienteException extends PagoException {
 
     public SaldoInsuficienteException() {
-        super(HttpStatus.UNPROCESSABLE_ENTITY, "Saldo insuficiente", "El saldo disponible no es suficiente para realizar el pago. Solo se aceptan pagos de contado: no hay crédito ni pagos parciales");
+        super(HttpStatus.UNPROCESSABLE_ENTITY, "Saldo insuficiente", "El saldo disponible no es suficiente para realizar el pago");
     }
 }
