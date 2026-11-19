@@ -60,7 +60,11 @@ export default function PayPage() {
     return <EmptyState icono="?" titulo="Servicio no encontrado" accion={<Link className="btn btn-primario" to="/">Ver catálogo</Link>}>Puede que ya no esté disponible.</EmptyState>;
   }
 
-  const montoFinal = producto.montoVariable ? Number(monto) : Number(validacion?.precio ?? producto.precio);
+  // Pago de contado: si el proveedor informa un adeudo se paga completo; el cargo es al saldo de la cuenta (sin crédito).
+  const adeudo = validacion?.montoAdeudo ? Number(validacion.montoAdeudo) : null;
+  const montoFinal = adeudo ?? (producto.montoVariable ? Number(monto) : Number(validacion?.precio ?? producto.precio));
+  const saldo = perfil?.saldo == null ? null : Number(perfil.saldo);
+  const sinSaldo = saldo != null && montoFinal > 0 && montoFinal > saldo;
   const vencida = validacion && restante <= 0 && paso === 1;
 
   const validarFormulario = () => {
@@ -71,7 +75,8 @@ export default function PayPage() {
   };
 
   const validarMonto = () => {
-    if (!producto.montoVariable) return null;
+    if (sinSaldo) return 'Saldo insuficiente: solo se aceptan pagos de contado con tu saldo disponible';
+    if (adeudo != null || !producto.montoVariable) return null;
     const n = Number(monto);
     if (!monto || !(n > 0)) return 'Escribe el monto a pagar';
     if (producto.montoMinimo && n < producto.montoMinimo) return `El monto mínimo es ${formatoMoneda(producto.montoMinimo)}`;
@@ -192,7 +197,7 @@ export default function PayPage() {
         <div className="tarjeta">
           <h2>Confirma tu pago</h2>
           <Alert tipo="exito">Referencia validada. {vencida ? '' : `Tienes ${Math.floor(restante / 60000)}:${String(Math.floor(restante / 1000) % 60).padStart(2, '0')} min para pagar.`}</Alert>
-          {producto.montoVariable && (
+          {producto.montoVariable && adeudo == null && (
             <Field label="Monto a pagar (MXN)" type="number" step="0.01" inputMode="decimal" value={monto}
               min={producto.montoMinimo} max={producto.montoMaximo} onChange={(e) => setMonto(e.target.value)} error={errores.monto}
               ayuda={validacion.montoAdeudo ? `Adeudo reportado: ${formatoMoneda(validacion.montoAdeudo)}` : undefined} />
@@ -202,12 +207,19 @@ export default function PayPage() {
               ['Servicio', validacion.servicio || producto.servicio],
               ['Producto', validacion.producto || producto.nombre],
               ['Referencia', validacion.referencia],
-              ['Adeudo', !producto.montoVariable && validacion.montoAdeudo ? formatoMoneda(validacion.montoAdeudo) : null],
+              ['Adeudo total', adeudo != null ? formatoMoneda(adeudo) : null],
+              ['Forma de pago', 'Contado: cargo único a tu saldo (sin crédito ni pagos parciales)'],
               ['Cuenta de cargo', perfil?.numeroCuenta ? `•••• ${perfil.numeroCuenta.slice(-4)}` : null],
               ['Saldo disponible', formatoMoneda(perfil?.saldo)],
+              ['Saldo después del pago', saldo != null && montoFinal > 0 && !sinSaldo ? formatoMoneda(saldo - montoFinal) : null],
             ]}
           />
           <div className="total"><span>Total a pagar</span><strong>{montoFinal > 0 ? formatoMoneda(montoFinal) : '—'}</strong></div>
+          {sinSaldo && (
+            <Alert tipo="error" titulo="Saldo insuficiente">
+              Te faltan {formatoMoneda(montoFinal - saldo)}. Solo se aceptan pagos de contado con el saldo de tu cuenta: no hay crédito ni pagos parciales.
+            </Alert>
+          )}
           {vencida && <Alert tipo="aviso" titulo="La validación venció">Vuelve a validar la referencia para continuar.</Alert>}
           {errorPago && (
             <ErrorApi error={errorPago.esDeRed ? { ...errorPago, message: `${errorPago.message} Puedes reintentar: no se cobrará dos veces.` } : errorPago} />
@@ -216,7 +228,7 @@ export default function PayPage() {
             <Button variante="secundario" onClick={reiniciar} disabled={pagando}>Cambiar referencia</Button>
             {vencida
               ? <Button onClick={reiniciar}>Validar de nuevo</Button>
-              : <Button onClick={pagar} cargando={pagando} disabled={!validacion.validacionId}>{pagando ? 'Procesando pago…' : errorPago?.esDeRed ? 'Reintentar pago' : `Pagar ${montoFinal > 0 ? formatoMoneda(montoFinal) : ''}`}</Button>}
+              : <Button onClick={pagar} cargando={pagando} disabled={!validacion.validacionId || sinSaldo}>{pagando ? 'Procesando pago…' : errorPago?.esDeRed ? 'Reintentar pago' : `Pagar ${montoFinal > 0 ? formatoMoneda(montoFinal) : ''}`}</Button>}
           </div>
         </div>
       )}

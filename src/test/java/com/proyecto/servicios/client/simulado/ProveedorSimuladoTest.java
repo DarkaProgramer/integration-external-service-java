@@ -36,6 +36,11 @@ class ProveedorSimuladoTest {
         ProductoCatalogo cfe = catalogo.obtener("201", "1");
         ReferenciasSimuladas referencias = new ReferenciasSimuladas();
         assertThat(referencias.validar(cfe, "123456789012").estado()).isEqualTo(ResultadoValidacionReferencia.Estado.VALIDA);
+        // Recibo: adeudo fijo por referencia (se paga completo). Recarga de precio fijo: sin adeudo
+        BigDecimal adeudo = referencias.validar(cfe, "123456789012").montoAdeudo();
+        assertThat(adeudo).isBetween(new BigDecimal("150.00"), new BigDecimal("2499.99"));
+        assertThat(referencias.validar(cfe, "123456789012").montoAdeudo()).isEqualTo(adeudo);
+        assertThat(referencias.validar(catalogo.obtener("101", "100"), "5512345678").montoAdeudo()).isNull();
         assertThat(referencias.validar(cfe, "000012345678").estado()).isEqualTo(ResultadoValidacionReferencia.Estado.INVALIDA);
 
         PagosSimulados pagos = new PagosSimulados();

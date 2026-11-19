@@ -128,4 +128,31 @@ class ValidacionReferenciaServiceImplTest {
         when(repository.findByIdAndClienteId("", 1L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.verificarParaPago(CLIENTE, pago)).isInstanceOf(ReferenciaNoValidadaException.class);
     }
+
+    @Test
+    @DisplayName("Pago de contado: con adeudo informado solo se acepta el monto completo")
+    void verificarParaPago_conAdeudo_exigeElTotal() {
+        PagoServicioRequestDto pago = new PagoServicioRequestDto();
+        pago.setIdServicio("5");
+        pago.setIdProducto("500");
+        pago.setReferencia("123456789012");
+        pago.setValidacionId("abc");
+        ValidacionReferencia v = new ValidacionReferencia();
+        v.setIdServicio("5");
+        v.setIdProducto("500");
+        v.setReferencia("123456789012");
+        v.setExpiraEn(LocalDateTime.now(CLOCK).plusMinutes(5));
+        v.setMontoAdeudo(new BigDecimal("845.50"));
+        when(repository.findByIdAndClienteId("abc", 1L)).thenReturn(Optional.of(v));
+
+        pago.setMonto(new BigDecimal("400.00"));
+        assertThatThrownBy(() -> service.verificarParaPago(CLIENTE, pago))
+                .isInstanceOf(com.proyecto.servicios.exception.pagos.MontoNoPermitidoException.class);
+        pago.setMonto(new BigDecimal("900.00"));
+        assertThatThrownBy(() -> service.verificarParaPago(CLIENTE, pago))
+                .isInstanceOf(com.proyecto.servicios.exception.pagos.MontoNoPermitidoException.class);
+
+        pago.setMonto(new BigDecimal("845.5"));
+        service.verificarParaPago(CLIENTE, pago);
+    }
 }

@@ -1,6 +1,7 @@
 package com.proyecto.servicios.service.Impl.pagos;
 
 import com.proyecto.servicios.entity.pagos.ValidacionReferencia;
+import com.proyecto.servicios.exception.pagos.MontoNoPermitidoException;
 import com.proyecto.servicios.exception.pagos.OperacionNoAutorizadaException;
 import com.proyecto.servicios.exception.pagos.ReferenciaInvalidaException;
 import com.proyecto.servicios.exception.pagos.ReferenciaNoValidadaException;
@@ -21,6 +22,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -115,6 +118,12 @@ public class ValidacionReferenciaServiceImpl implements ValidacionReferenciaServ
         }
         if (!validacion.getExpiraEn().isAfter(LocalDateTime.now(clock))) {
             throw new ReferenciaNoValidadaException();
+        }
+        // Pago de contado: si el proveedor informó un adeudo, se paga completo (ni parcial ni de más)
+        BigDecimal adeudo = validacion.getMontoAdeudo();
+        if (adeudo != null && (solicitud.getMonto() == null || solicitud.getMonto().compareTo(adeudo) != 0)) {
+            throw new MontoNoPermitidoException("Solo se aceptan pagos de contado: debes pagar el total del adeudo ("
+                    + adeudo.setScale(2, RoundingMode.HALF_UP).toPlainString() + ")");
         }
     }
 
