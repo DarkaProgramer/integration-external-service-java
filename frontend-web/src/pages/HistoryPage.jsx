@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
+import ProductLogo from '../components/ProductLogo';
 import { pagosApi } from '../api/pagosApi';
 import { useAsync } from '../hooks/useAsync';
 import { config } from '../config/env';
@@ -48,9 +49,11 @@ export default function HistoryPage() {
           {pagos.map((p) => (
             <li key={p.folio}>
               <Link to={`/historial/${encodeURIComponent(p.folio)}`} className="pago-fila">
+                <ProductLogo nombre={[p.servicio, p.producto].filter(Boolean).join(' ')} tamano={44} />
                 <div className="pago-fila-info">
                   <strong>{p.producto || p.servicio}</strong>
                   <span className="texto-suave texto-chico">{p.servicio} · Ref. {p.referencia} · {formatoFecha(p.fechaOperacion)}</span>
+                  <span className="texto-suave texto-chico">Folio {p.folio}</span>
                 </div>
                 <div className="pago-fila-monto">
                   <strong>{formatoMoneda(p.monto)}</strong>

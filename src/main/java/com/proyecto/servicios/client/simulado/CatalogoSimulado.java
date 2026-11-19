@@ -18,14 +18,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Catálogo de servicios para prácticas y demostraciones (modo {@code gestopago.modo=simulado}, el predeterminado).
+ * Catálogo de servicios para prácticas y demostraciones (solo con {@code gestopago.modo=simulado}; el predeterminado es "real").
  * No llama a Gestopago: siempre responde, así la web y la app se pueden probar completas.
  * Para usar el catálogo real: variable {@code GESTOPAGO_MODO=real}.
  */
 @Slf4j
 @Primary
 @Service
-@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado", matchIfMissing = true)
+@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado")
 public class CatalogoSimulado implements CatalogoProductosService {
 
     private static final ReglaReferencia TELEFONO = new ReglaReferencia(10, 10, true);

@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # En Flutter >= 3.47 Material se movió al paquete material_ui; seguimos usando
+    # package:flutter/material.dart para que el proyecto compile también con versiones anteriores.
+    deprecated_member_use: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    prefer_const_constructors: true
+    avoid_print: true

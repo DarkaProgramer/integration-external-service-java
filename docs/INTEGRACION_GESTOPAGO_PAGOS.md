@@ -1,5 +1,10 @@
 # Integración de pagos de servicios con Gestopago
 
+> **Actualización:** los pagos ya no se cobran del saldo de la cuenta. Ahora se cobran con **tarjeta de débito, de
+> contado** (nueva o guardada), en la web y en la app. Los pasos 10 y 11 de abajo cambian a "autorizar el cargo a la
+> tarjeta" y un rechazo se reembolsa a la tarjeta. El resto del diseño (idempotencia, conciliación, estados) sigue
+> igual. Visión general actualizada: [DOCUMENTO_TECNICO.md](DOCUMENTO_TECNICO.md).
+
 Pago de servicios (recargas, recibos) desde la cuenta del cliente, integrado con
 `POST https://gestopago.portalventas.net/sistema/service/sendTx.do`.
 

@@ -22,7 +22,7 @@ registro / login ──► catálogo ──► validar referencia ──► paga
 | `POST /api/auth/login` | — | `{correo, password, dispositivo:{tipo:"WEB"\|"MOVIL", nombre}}` |
 | `POST /api/auth/refresh` | — | `{refreshToken}` → tokens nuevos (el refresh anterior deja de servir). |
 | `POST /api/auth/logout` | Bearer | Cierra la sesión de este dispositivo. |
-| `GET /api/auth/perfil` | Bearer | Nombre, correo, `numeroCuenta`, `saldo`. |
+| `GET /api/auth/perfil` | Bearer | Nombre, correo, `numeroCuenta` (el saldo ya no se usa para pagar). |
 | `GET /api/auth/sesiones` | Bearer | Sesiones abiertas (`actual: true` = este dispositivo). |
 | `POST /api/auth/sesiones/cerrar` | Bearer | `{sesionId}`: cerrar otro dispositivo ("no fui yo"). |
 | `GET /api/auth/alertas` | Bearer | Alertas no leídas: la cuenta inició sesión en otro dispositivo. |
@@ -86,8 +86,13 @@ El `validacionId` vence en 10 minutos y sirve para **un solo** pago.
 
 ```json
 { "numeroCuenta": "0123456789", "idServicio": "1", "idProducto": "100",
-  "referencia": "5512345678", "validacionId": "uuid", "monto": 100.00 }
+  "referencia": "5512345678", "validacionId": "uuid", "monto": 100.00,
+  "tarjetaGuardadaId": "tok_…", "cvv": "123" }
 ```
+
+Medio de pago (obligatorio): tarjeta de débito de contado. Se envía **una** de estas opciones:
+`tarjetaGuardadaId` + `cvv`, o `tarjeta: {numero, titular, mesVencimiento, anioVencimiento, cvv}` con
+`guardarTarjeta: true|false`.
 
 Mostrar primero un **resumen** (servicio, producto, referencia enmascarada, monto) y pedir confirmación. Si la petición
 falla por red, reintentar con la **misma** `Idempotency-Key` (no cobra dos veces).
@@ -99,6 +104,14 @@ falla por red, reintentar con la **misma** `Idempotency-Key` (no cobra dos veces
 | 202 | `PENDIENTE` | En proceso; dinero retenido. Consultar el folio más tarde. |
 | 200 | (repetición) | Mismo resultado de la primera vez. |
 | 409 | — | Pago duplicado o validación ya usada. |
+
+## 4.1 Tarjetas guardadas
+
+| Método y ruta | Uso |
+|---|---|
+| `GET /api/tarjetas` | Lista `[{id, marca, ultimos4, vencimiento, titular, vencida}]`. |
+| `POST /api/tarjetas` | Guarda una tarjeta `{numero, titular, mesVencimiento, anioVencimiento, cvv}`. |
+| `DELETE /api/tarjetas/{id}` | Elimina una tarjeta guardada. |
 
 ## 5. Historial y detalle
 

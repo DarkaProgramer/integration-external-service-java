@@ -22,6 +22,13 @@ services:
           property: connectionString
       - key: APP_JWT_SECRET
         generateValue: true
+      # Siempre las APIs reales de Gestopago (ambiente de pruebas); nunca el modo simulado en la entrega
+      - key: GESTOPAGO_MODO
+        value: real
+      - key: GESTOPAGO_ID_DISTRIBUIDOR
+        sync: false
+      - key: GESTOPAGO_CODIGO_DISPOSITIVO
+        sync: false
       - key: GESTOPAGO_PASSWORD
         sync: false
       - key: GESTOPAGO_PRODUCTS_TOKEN

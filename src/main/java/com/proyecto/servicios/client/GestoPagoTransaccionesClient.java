@@ -22,4 +22,11 @@ public interface GestoPagoTransaccionesClient {
 
     @PostMapping(value = "/sistema/service/sendTx.do", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     String sendTx(@RequestBody Map<String, ?> parametros);
+
+    /**
+     * Consulta del estado de una transacción ya enviada (para conciliar pagos pendientes). La ruta depende del
+     * contrato del proveedor: variable GESTOPAGO_CONSULTA_TX_PATH. Sin ruta no se llama (ver GestoPagoPagosGateway).
+     */
+    @PostMapping(value = "${gestopago.tx.consulta-path:/}", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    String consultarTx(@RequestBody Map<String, ?> parametros);
 }

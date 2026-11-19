@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,7 +23,7 @@ class GestoPagoBearerTokenTest {
     private final GestoPagoTokenService tokenService = mock(GestoPagoTokenService.class);
 
     private GestoPagoBearerToken conPassword(String password) {
-        return new GestoPagoBearerToken(tokenService, 83, "DISP", password, HORA, "https://gp.test", "");
+        return new GestoPagoBearerToken(tokenService, 83, "DISP", password, HORA, "https://gp.test", "", 60);
     }
 
     private static Optional<GestoPagoToken> guardado(String valor, LocalDateTime actualizado) {
@@ -64,5 +65,17 @@ class GestoPagoBearerTokenTest {
                 .isInstanceOfSatisfying(GestoPagoIntegrationException.class,
                         e -> assertThat(e.getErrorType()).isEqualTo(GestoPagoErrorType.AUTHENTICATION));
         verify(tokenService, never()).renovarToken();
+    }
+
+    @Test
+    void obtener_gestoPagoNoRespondio_noReintentaEnLaSiguientePeticion() {
+        when(tokenService.obtenerTokenActivo(83, "DISP")).thenReturn(Optional.empty());
+        GestoPagoBearerToken token = conPassword("clave");
+
+        assertThatThrownBy(() -> token.obtener("")).isInstanceOf(GestoPagoIntegrationException.class);
+        assertThatThrownBy(() -> token.obtener("")).isInstanceOf(GestoPagoIntegrationException.class);
+
+        // Solo el primer intento llama a Gestopago; el segundo responde de inmediato
+        verify(tokenService, times(1)).renovarToken();
     }
 }

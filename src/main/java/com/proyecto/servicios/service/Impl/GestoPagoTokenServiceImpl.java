@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -41,10 +43,17 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
     @Override
     @Scheduled(fixedRateString = "${gestopago.auth.refresh-rate-ms:3600000}", initialDelay = 0)
     public void renovarToken() {
+        if (password == null || password.isBlank()) {
+            log.warn("GESTOPAGO_PASSWORD no está configurada: no se renueva el token de GestoPago");
+            return;
+        }
         log.info("Renovando token GestoPago para distribuidor={}", idDistribuidor);
         try {
-            GestoPagoAuthResponse response = gestoPagoAuthClient.authenticate(
-                    idDistribuidor, codigoDispositivo, password);
+            Map<String, Object> credenciales = new LinkedHashMap<>();
+            credenciales.put("idDistribuidor", idDistribuidor);
+            credenciales.put("codigoDispositivo", codigoDispositivo);
+            credenciales.put("password", password);
+            GestoPagoAuthResponse response = gestoPagoAuthClient.authenticate(credenciales);
 
             if (response == null || response.getToken() == null || response.getToken().isBlank()) {
                 log.error("La respuesta de GestoPago no contiene token: status={}", response == null ? null : response.getStatus());
@@ -69,7 +78,7 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             log.info("Token GestoPago renovado correctamente");
 
         } catch (Exception e) {
-            // Solo la clase: el mensaje de Feign incluye la URL con la contraseña como parámetro
+            // Solo la clase y el código HTTP: el mensaje de Feign puede incluir la petición completa
             log.error("Error al renovar token GestoPago: causa={}{}", e.getClass().getSimpleName(),
                     e instanceof feign.FeignException f && f.status() > 0 ? ", HTTP " + f.status() : "");
         }

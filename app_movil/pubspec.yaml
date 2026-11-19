@@ -1,0 +1,30 @@
+name: hasani_pagos
+description: "App móvil de pago de servicios (Gestopago) del proyecto Hasani."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  http: ^1.2.2
+  flutter_secure_storage: ^9.2.2
+  intl: ^0.20.1
+  uuid: ^4.5.1
+  device_info_plus: ^11.1.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logos/
+    - assets/data/

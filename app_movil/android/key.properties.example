@@ -1,0 +1,6 @@
+# Copia este archivo como key.properties (en esta misma carpeta) y llena los datos de tu keystore.
+# key.properties y el .jks están en .gitignore: nunca los subas al repositorio.
+storePassword=CAMBIA_ESTO
+keyPassword=CAMBIA_ESTO
+keyAlias=upload
+storeFile=C:/Users/TU_USUARIO/upload-keystore.jks

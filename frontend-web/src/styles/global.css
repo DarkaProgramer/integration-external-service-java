@@ -215,7 +215,9 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
 .lista-pagos { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .6rem; }
 .pago-fila { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.1rem; background: var(--superficie); border: 1px solid var(--borde); border-radius: 12px; color: var(--texto); text-decoration: none !important; }
 .pago-fila:hover { border-color: var(--primario); }
-.pago-fila-info { display: flex; flex-direction: column; min-width: 0; }
+.pago-fila-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pago-fila > .logo { flex: none; }
+.comprobante-servicio { display: flex; align-items: center; justify-content: center; gap: .6rem; margin: .5rem 0; }
 .pago-fila-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pago-fila-monto { display: flex; flex-direction: column; align-items: flex-end; gap: .25rem; flex: none; }
 .paginacion { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }

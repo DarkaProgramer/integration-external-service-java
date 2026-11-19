@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 @Primary
 @Component
-@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado", matchIfMissing = true)
+@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado")
 public class PagosSimulados implements ProveedorPagosGateway {
 
     @Override

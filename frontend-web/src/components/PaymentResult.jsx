@@ -1,4 +1,5 @@
 import DetailList from './DetailList';
+import ProductLogo from './ProductLogo';
 import StatusBadge from './StatusBadge';
 import { formatoFecha, formatoMoneda } from '../utils/formato';
 
@@ -16,6 +17,10 @@ export default function PaymentResult({ pago, children }) {
       <div className={`resultado-icono resultado-${e.clase}`} aria-hidden>{e.icono}</div>
       <h2>{e.titulo}</h2>
       {pago.mensaje && <p className="texto-suave">{pago.mensaje}</p>}
+      <div className="comprobante-servicio">
+        <ProductLogo nombre={[pago.servicio, pago.producto].filter(Boolean).join(' ')} tamano={48} />
+        <strong>{pago.producto || pago.servicio}</strong>
+      </div>
       <p className="monto-grande">{formatoMoneda(pago.monto)}</p>
       <DetailList
         filas={[

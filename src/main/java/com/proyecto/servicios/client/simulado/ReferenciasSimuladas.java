@@ -17,7 +17,7 @@ import java.math.RoundingMode;
  */
 @Primary
 @Component
-@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado", matchIfMissing = true)
+@ConditionalOnProperty(name = "gestopago.modo", havingValue = "simulado")
 public class ReferenciasSimuladas implements ValidadorReferenciaGateway {
 
     @Override

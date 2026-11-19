@@ -153,6 +153,27 @@ class GestoPagoPagosGatewayTest {
         assertThat(gateway.consultarEstado(SOLICITUD)).isEmpty();
     }
 
+    @Test
+    void consultarEstado_conRuta_aceptaSoloCodigosConfigurados() {
+        GestoPagoPagosGateway conConsulta = new GestoPagoPagosGateway(client, Set.of("0", "00"), Set.of("05"), "/consulta.do");
+        when(client.consultarTx(anyMap()))
+                .thenReturn("<R><CODIGO>0</CODIGO><FOLIO>GP-9</FOLIO></R>")
+                .thenReturn("<R><CODIGO>99</CODIGO></R>");
+
+        assertThat(conConsulta.consultarEstado(SOLICITUD)).get()
+                .extracting(ResultadoProveedor::estado).isEqualTo(ResultadoProveedor.Estado.APROBADA);
+        // Código desconocido: no se decide nada
+        assertThat(conConsulta.consultarEstado(SOLICITUD)).isEmpty();
+    }
+
+    @Test
+    void consultarEstado_errorDeRed_noCambiaNada() {
+        GestoPagoPagosGateway conConsulta = new GestoPagoPagosGateway(client, Set.of("0"), Set.of("05"), "/consulta.do");
+        when(client.consultarTx(anyMap())).thenThrow(feignError(500));
+
+        assertThat(conConsulta.consultarEstado(SOLICITUD)).isEmpty();
+    }
+
     private FeignException feignError(int status) {
         Response response = Response.builder().status(status).reason("x").request(request)
                 .headers(Collections.emptyMap()).build();

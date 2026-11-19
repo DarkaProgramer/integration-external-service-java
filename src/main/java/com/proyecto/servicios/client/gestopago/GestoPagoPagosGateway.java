@@ -8,6 +8,7 @@ import com.proyecto.servicios.service.pagos.SolicitudPagoProveedor;
 import feign.FeignException;
 import feign.RetryableException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -55,11 +56,21 @@ public class GestoPagoPagosGateway implements ProveedorPagosGateway {
     private final GestoPagoTransaccionesClient client;
     private final Set<String> codigosAprobada;
     private final Set<String> codigosRechazo;
+    private final boolean consultaConfigurada;
 
     public GestoPagoPagosGateway(GestoPagoTransaccionesClient client,
                                  @Value("${gestopago.tx.codigos-aprobada:0,00}") Set<String> codigosAprobada,
                                  @Value("${gestopago.tx.codigos-rechazo:}") Set<String> codigosRechazo) {
+        this(client, codigosAprobada, codigosRechazo, "");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public GestoPagoPagosGateway(GestoPagoTransaccionesClient client,
+                                 @Value("${gestopago.tx.codigos-aprobada:0,00}") Set<String> codigosAprobada,
+                                 @Value("${gestopago.tx.codigos-rechazo:}") Set<String> codigosRechazo,
+                                 @Value("${gestopago.tx.consulta-path:}") String consultaPath) {
         this.client = client;
+        this.consultaConfigurada = StringUtils.isNotBlank(consultaPath) && !"/".equals(consultaPath.strip());
         this.codigosAprobada = limpiar(codigosAprobada);
         this.codigosRechazo = limpiar(codigosRechazo);
     }
@@ -85,14 +96,24 @@ public class GestoPagoPagosGateway implements ProveedorPagosGateway {
     }
 
     /**
-     * Gestopago no publica un endpoint de consulta de transacciones (al menos no en la información disponible).
-     * Por eso no se adivina: los pagos dudosos agotan sus intentos y pasan a revisión manual, donde un operador
-     * los resuelve con el reporte o el portal del proveedor. Cuando exista el endpoint, se implementa aquí
-     * y la conciliación automática empieza a funcionar sin cambiar el resto del código.
+     * Consulta el estado de un pago dudoso con la ruta GESTOPAGO_CONSULTA_TX_PATH (la que indique el contrato de
+     * Gestopago). Solo se acepta una respuesta 2xx con un código configurado (aprobada o rechazada); cualquier
+     * error o código desconocido deja el pago como estaba, porque devolver dinero sin certeza no es aceptable.
+     * Sin ruta configurada no se consulta: los pagos dudosos agotan sus intentos y pasan a revisión manual.
      */
     @Override
     public Optional<ResultadoProveedor> consultarEstado(SolicitudPagoProveedor solicitud) {
-        return Optional.empty();
+        if (!consultaConfigurada) {
+            return Optional.empty();
+        }
+        try {
+            ResultadoProveedor resultado = interpretar(client.consultarTx(parametros(solicitud)));
+            log.info("GestoPago consulta folio={} estado={} codigo={}", solicitud.folio(), resultado.estado(), resultado.codigo());
+            return resultado.estado() == ResultadoProveedor.Estado.INDETERMINADA ? Optional.empty() : Optional.of(resultado);
+        } catch (RuntimeException e) {
+            log.warn("GestoPago consulta folio={} sin respuesta: causa={}", solicitud.folio(), e.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     ResultadoProveedor interpretar(String cuerpo) {

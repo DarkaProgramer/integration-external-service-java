@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Token Bearer para los servicios de Gestopago (catálogo, transacciones y referencias).
@@ -23,6 +25,10 @@ import java.util.Optional;
  * </ol>
  * Antes solo se usaba el token fijo: al caducar (los JWT de Gestopago duran poco) el catálogo dejaba de cargar
  * aunque la contraseña estuviera bien configurada.
+ * <p>
+ * Si Gestopago no responde al pedir el token, durante {@code gestopago.auth.espera-tras-fallo-segundos} las
+ * peticiones de los usuarios ya no lo vuelven a pedir: responden de inmediato con error en lugar de quedarse
+ * esperando (la renovación programada sigue intentando en segundo plano).
  */
 @Slf4j
 @Component
@@ -33,6 +39,8 @@ public class GestoPagoBearerToken {
     private final String codigoDispositivo;
     private final String password;
     private final Duration vigencia;
+    private final Duration esperaTrasFallo;
+    private final AtomicReference<Instant> ultimoFallo = new AtomicReference<>();
 
     public GestoPagoBearerToken(GestoPagoTokenService tokenService,
                                 @Value("${gestopago.auth.id-distribuidor}") Integer idDistribuidor,
@@ -40,13 +48,15 @@ public class GestoPagoBearerToken {
                                 @Value("${gestopago.auth.password:}") String password,
                                 @Value("${gestopago.auth.refresh-rate-ms:3600000}") long refrescoMs,
                                 @Value("${gestopago.base-url:}") String urlBase,
-                                @Value("${gestopago.products.bearer-token:}") String tokenProductos) {
+                                @Value("${gestopago.products.bearer-token:}") String tokenProductos,
+                                @Value("${gestopago.auth.espera-tras-fallo-segundos:60}") long esperaTrasFalloSegundos) {
         this.tokenService = tokenService;
         this.idDistribuidor = idDistribuidor;
         this.codigoDispositivo = codigoDispositivo;
         this.password = password;
         // Se considera vigente hasta dos ciclos de renovación (si una renovación falla, aún hay margen)
         this.vigencia = Duration.ofMillis(refrescoMs * 2);
+        this.esperaTrasFallo = Duration.ofSeconds(Math.max(0, esperaTrasFalloSegundos));
         // Resumen al arrancar (sin secretos) para revisar en los logs de Render qué variables llegaron
         log.info("Configuración GestoPago: url={}, idDistribuidor={}, GESTOPAGO_PASSWORD={}, GESTOPAGO_PRODUCTS_TOKEN={}",
                 urlBase, idDistribuidor, StringUtils.isNotBlank(password) ? "configurada" : "FALTA",
@@ -60,10 +70,14 @@ public class GestoPagoBearerToken {
      */
     public String obtener(String tokenFijo) {
         Optional<String> dinamico = tokenGuardado(true);
-        if (dinamico.isEmpty() && StringUtils.isNotBlank(password) && StringUtils.isBlank(tokenFijo)) {
+        if (dinamico.isEmpty() && StringUtils.isNotBlank(password) && StringUtils.isBlank(tokenFijo)
+                && !enEsperaTrasFallo()) {
             // Primer uso (o la renovación programada aún no corre): pedir uno en este momento
             renovar();
             dinamico = tokenGuardado(true);
+            if (dinamico.isEmpty()) {
+                ultimoFallo.set(Instant.now());
+            }
         }
         if (dinamico.isPresent()) {
             return dinamico.get();
@@ -87,6 +101,16 @@ public class GestoPagoBearerToken {
             return;
         }
         tokenService.renovarToken();
+    }
+
+    private boolean enEsperaTrasFallo() {
+        Instant fallo = ultimoFallo.get();
+        boolean esperando = fallo != null && fallo.plus(esperaTrasFallo).isAfter(Instant.now());
+        if (esperando) {
+            log.warn("GestoPago no entregó token hace menos de {} s: no se reintenta en esta petición",
+                    esperaTrasFallo.toSeconds());
+        }
+        return esperando;
     }
 
     private Optional<String> tokenGuardado(boolean soloReciente) {
