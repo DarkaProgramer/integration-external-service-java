@@ -264,3 +264,14 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
 
 .formulario > p, .formulario h2 + p, .pagina-cabecera p { margin: 0; }
 .pagina-cabecera p { margin-top: .25rem; }
+
+/* Tarjetas guardadas */
+.lista-tarjetas { list-style: none; padding: 0; margin: .75rem 0; display: flex; flex-direction: column; gap: .5rem; }
+.lista-tarjetas li { display: flex; align-items: center; gap: .75rem; padding: .75rem; border: 1px solid var(--borde); border-radius: 12px; }
+.lista-tarjetas li.seleccionada { border-color: var(--primario, #2563eb); box-shadow: 0 0 0 1px var(--primario, #2563eb); }
+.lista-tarjetas li > div, .lista-tarjetas label > div { flex: 1; min-width: 0; }
+.lista-tarjetas label { display: flex; align-items: center; gap: .75rem; flex: 1; cursor: pointer; }
+.lista-tarjetas input[type=radio] { width: 1.1rem; height: 1.1rem; }
+.tarjeta-icono { font-size: 1.4rem; }
+.cvv-guardada { max-width: 9rem; margin: 0 0 0 2rem; }
+.check-guardar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0 .75rem; font-size: .95rem; }

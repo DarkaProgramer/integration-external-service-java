@@ -5,6 +5,7 @@ import com.proyecto.servicios.exception.pagos.TarjetaRechazadaException;
 import com.proyecto.servicios.model.pagos.TarjetaDto;
 import com.proyecto.servicios.service.pagos.AutorizacionTarjeta;
 import com.proyecto.servicios.service.pagos.ProcesadorTarjetas;
+import com.proyecto.servicios.service.pagos.TarjetaTokenizada;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.YearMonth;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Procesador de tarjetas de práctica: valida como lo haría un adquirente real, pero no cobra dinero.
@@ -21,6 +23,7 @@ import java.util.Set;
  *     <li>Número con dígito verificador válido (algoritmo de Luhn), vigencia y CVV de 3 dígitos.</li>
  *     <li>Las tarjetas de crédito se identifican por su BIN (primeros 6 dígitos) y se rechazan.</li>
  * </ul>
+ * El número completo nunca se conserva: se cambia por un token (el CVV se pide en cada pago).
  * Tarjetas para probar rechazos del banco: terminación 0002 = fondos insuficientes, 0069 = tarjeta bloqueada.
  * Nunca se registra el número completo ni el CVV.
  */
@@ -40,7 +43,7 @@ public class ProcesadorTarjetasSimulado implements ProcesadorTarjetas {
     }
 
     @Override
-    public AutorizacionTarjeta autorizar(TarjetaDto tarjeta, BigDecimal monto) {
+    public TarjetaTokenizada tokenizar(TarjetaDto tarjeta) {
         String numero = tarjeta.getNumero() == null ? "" : tarjeta.getNumero().replaceAll("\\s", "");
         String marca = marca(numero);
         if (marca == null) {
@@ -53,20 +56,33 @@ public class ProcesadorTarjetasSimulado implements ProcesadorTarjetas {
             throw new TarjetaInvalidaException("Es una tarjeta de crédito: solo se aceptan tarjetas de débito (pago de contado)");
         }
         validarVigencia(tarjeta.getMesVencimiento(), tarjeta.getAnioVencimiento());
-        if (tarjeta.getCvv() == null || !tarjeta.getCvv().matches("\\d{3}")) {
-            throw new TarjetaInvalidaException("El CVV debe tener 3 dígitos");
-        }
+        validarCvv(tarjeta.getCvv());
+        int anio = tarjeta.getAnioVencimiento() < 100 ? 2000 + tarjeta.getAnioVencimiento() : tarjeta.getAnioVencimiento();
+        String titular = tarjeta.getTitular() == null ? null : tarjeta.getTitular().trim().toUpperCase(java.util.Locale.ROOT);
+        return new TarjetaTokenizada("tok_" + UUID.randomUUID().toString().replace("-", ""), marca, numero.substring(12),
+                tarjeta.getMesVencimiento(), anio, titular);
+    }
 
-        String ultimos4 = numero.substring(12);
-        switch (ultimos4) {
+    @Override
+    public AutorizacionTarjeta autorizar(TarjetaTokenizada tarjeta, String cvv, BigDecimal monto) {
+        validarVigencia(tarjeta.mesVencimiento(), tarjeta.anioVencimiento());
+        validarCvv(cvv);
+        switch (tarjeta.ultimos4()) {
             case "0002" -> throw new TarjetaRechazadaException("El banco declinó el cargo: fondos insuficientes en la tarjeta. No se realizó ningún cargo");
             case "0069" -> throw new TarjetaRechazadaException("El banco declinó el cargo: la tarjeta está bloqueada. Comunícate con tu banco");
             default -> {
             }
         }
         String codigo = String.format("%06d", aleatorio.nextInt(1_000_000));
-        log.info("Cargo con tarjeta autorizado: marca={} ultimos4={} monto={} autorizacion={}", marca, ultimos4, monto, codigo);
-        return new AutorizacionTarjeta(marca, ultimos4, codigo);
+        log.info("Cargo con tarjeta autorizado: marca={} ultimos4={} monto={} autorizacion={}",
+                tarjeta.marca(), tarjeta.ultimos4(), monto, codigo);
+        return new AutorizacionTarjeta(tarjeta.marca(), tarjeta.ultimos4(), codigo);
+    }
+
+    private static void validarCvv(String cvv) {
+        if (cvv == null || !cvv.matches("\\d{3}")) {
+            throw new TarjetaInvalidaException("El CVV debe tener 3 dígitos");
+        }
     }
 
     @Override

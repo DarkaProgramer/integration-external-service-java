@@ -250,7 +250,7 @@ class FlujoUsuarioIntegrationTest {
         conToken(post("/api/pagos/servicios/consultar").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"folio\":\"" + folio + "\"}"), token)
                 .andExpect(jsonPath("$.datos.estatus").value("APROBADA"));
-        conToken(get("/api/auth/perfil"), token).andExpect(jsonPath("$.datos.saldo").value(900.00));
+        conToken(get("/api/auth/perfil"), token).andExpect(jsonPath("$.datos.saldo").value(1000.00));
 
         // Otro usuario no ve el historial ni el detalle ajeno
         correo = "otro" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
@@ -300,7 +300,7 @@ class FlujoUsuarioIntegrationTest {
         return conToken(post("/api/pagos/servicios").header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"numeroCuenta":"%s","idServicio":"1","idProducto":"100","referencia":"%s","validacionId":"%s","monto":100.00}
+                        {"numeroCuenta":"%s","idServicio":"1","idProducto":"100","referencia":"%s","validacionId":"%s","monto":100.00,"tarjeta":{"numero":"4000123456759010","titular":"Angel Perez","mesVencimiento":12,"anioVencimiento":2030,"cvv":"123"}}
                         """.formatted(cuenta, referencia, validacionId)), token);
     }
 

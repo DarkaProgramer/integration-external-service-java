@@ -47,11 +47,24 @@ public class PagoServicioRequestDto {
     @Digits(integer = 7, fraction = 2, message = "El monto admite como máximo 2 decimales")
     private BigDecimal monto;
 
-    /**
-     * Tarjeta de débito con la que se cobra el pago (de contado, en una sola exhibición). Si no se envía,
-     * se usa el método anterior: cargo al saldo de la cuenta (lo usa la app móvil).
+    /*
+     * Medio de pago: tarjeta de débito, de contado (una sola exhibición). Se envía UNA de estas opciones:
+     *  - tarjetaGuardadaId + cvv: una tarjeta guardada del cliente (el CVV se pide en cada pago), o
+     *  - tarjeta: una tarjeta nueva, con guardarTarjeta=true si el cliente quiere guardarla.
      */
+
+    /** Id de una tarjeta guardada (GET /api/tarjetas). */
+    @Pattern(regexp = "^tok_[a-f0-9]{32}$", message = "Tarjeta guardada inválida")
+    private String tarjetaGuardadaId;
+
+    /** CVV de la tarjeta guardada. Nunca se guarda. */
+    @ToString.Exclude
+    @Pattern(regexp = "^\\d{3}$", message = "El CVV debe tener 3 dígitos")
+    private String cvv;
+
     @Valid
     @ToString.Exclude
     private TarjetaDto tarjeta;
+
+    private Boolean guardarTarjeta;
 }

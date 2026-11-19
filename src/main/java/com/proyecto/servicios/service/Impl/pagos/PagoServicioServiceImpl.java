@@ -18,7 +18,7 @@ import com.proyecto.servicios.seguridad.ClienteAutenticado;
 import com.proyecto.servicios.service.pagos.CatalogoProductosService;
 import com.proyecto.servicios.service.pagos.PagoServicioService;
 import com.proyecto.servicios.service.pagos.AutorizacionTarjeta;
-import com.proyecto.servicios.service.pagos.ProcesadorTarjetas;
+import com.proyecto.servicios.service.pagos.TarjetasService;
 import com.proyecto.servicios.service.pagos.ProductoCatalogo;
 import com.proyecto.servicios.service.pagos.ProveedorPagosGateway;
 import com.proyecto.servicios.service.pagos.ResultadoProveedor;
@@ -69,7 +69,7 @@ public class PagoServicioServiceImpl implements PagoServicioService {
     private final PagoServicioRepository pagoRepository;
     private final PagoServicioMapper mapper;
     private final ValidacionReferenciaService validacionReferenciaService;
-    private final ProcesadorTarjetas procesadorTarjetas;
+    private final TarjetasService tarjetasService;
 
     @Override
     public ResultadoPagoServicio pagar(ClienteAutenticado cliente, String idempotencyKey, PagoServicioRequestDto solicitud) {
@@ -92,10 +92,9 @@ public class PagoServicioServiceImpl implements PagoServicioService {
         ProductoCatalogo producto = catalogoProductosService.validarProductoYMonto(
                 solicitud.getIdServicio(), solicitud.getIdProducto(), solicitud.getMonto());
 
-        // Pago de contado con tarjeta de débito: el banco autoriza el cargo antes de registrar el pago.
-        // Si el registro falla o resulta ser un reintento, el cargo se reembolsa.
-        AutorizacionTarjeta tarjeta = solicitud.getTarjeta() == null ? null
-                : procesadorTarjetas.autorizar(solicitud.getTarjeta(), solicitud.getMonto());
+        // Pago de contado con tarjeta de débito (guardada o nueva): el banco autoriza el cargo antes de registrar
+        // el pago. Si el registro falla o resulta ser un reintento, el cargo se reembolsa.
+        AutorizacionTarjeta tarjeta = tarjetasService.cobrar(cliente, solicitud);
 
         PagoServicioTransacciones.Reserva reserva;
         try {
@@ -180,9 +179,7 @@ public class PagoServicioServiceImpl implements PagoServicioService {
 
     /** SHA-256 de los datos que definen la operación (el monto normalizado a 2 decimales: 100 == 100.00). */
     private void reembolsar(AutorizacionTarjeta tarjeta, PagoServicioRequestDto solicitud) {
-        if (tarjeta != null) {
-            procesadorTarjetas.reembolsar(tarjeta, solicitud.getMonto());
-        }
+        tarjetasService.reembolsar(tarjeta, solicitud.getMonto());
     }
 
     static String huella(PagoServicioRequestDto s) {

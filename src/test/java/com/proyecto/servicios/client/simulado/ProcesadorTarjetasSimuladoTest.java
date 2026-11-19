@@ -31,10 +31,24 @@ class ProcesadorTarjetasSimuladoTest {
         return t;
     }
 
+    private AutorizacionTarjeta cobrar(TarjetaDto t, BigDecimal monto) {
+        return procesador.autorizar(procesador.tokenizar(t), t.getCvv(), monto);
+    }
+
+    @Test
+    void tokenizar_noConservaNumeroNiCvv() {
+        var tok = procesador.tokenizar(tarjeta("4000123456759010", 12, 2028, "123"));
+        assertThat(tok.token()).matches("tok_[a-f0-9]{32}");
+        assertThat(tok.ultimos4()).isEqualTo("9010");
+        assertThat(tok.toString()).doesNotContain("4000123456759010");
+        assertThatThrownBy(() -> procesador.autorizar(tok, "1", BigDecimal.TEN))
+                .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("CVV");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"4000 1234 5675 9010", "5200123456754321"})
     void debitoValida_seAutoriza(String numero) {
-        AutorizacionTarjeta a = procesador.autorizar(tarjeta(numero, 12, 2028, "123"), BigDecimal.TEN);
+        AutorizacionTarjeta a = cobrar(tarjeta(numero, 12, 2028, "123"), BigDecimal.TEN);
 
         assertThat(a.ultimos4()).isEqualTo(numero.replace(" ", "").substring(12));
         assertThat(a.codigo()).matches("\\d{6}");
@@ -43,31 +57,31 @@ class ProcesadorTarjetasSimuladoTest {
 
     @Test
     void credito_seRechaza() {
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4111111111111111", 12, 2028, "123"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4111111111111111", 12, 2028, "123"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("crédito");
     }
 
     @Test
     void amex_noSeAcepta() {
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("378282246310005", 12, 2028, "1234"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("378282246310005", 12, 2028, "1234"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("débito");
     }
 
     @Test
     void luhnInvalido_vencidaYCvv() {
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4000123456759011", 12, 2028, "123"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4000123456759011", 12, 2028, "123"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("no es válido");
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4000123456759010", 10, 2026, "123"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4000123456759010", 10, 2026, "123"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("vencida");
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4000123456759010", 12, 2028, "12"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4000123456759010", 12, 2028, "12"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaInvalidaException.class).hasMessageContaining("CVV");
     }
 
     @Test
     void rechazosDelBanco() {
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4000123456740002", 12, 2028, "123"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4000123456740002", 12, 2028, "123"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaRechazadaException.class).hasMessageContaining("fondos insuficientes");
-        assertThatThrownBy(() -> procesador.autorizar(tarjeta("4000123456740069", 12, 2028, "123"), BigDecimal.TEN))
+        assertThatThrownBy(() -> cobrar(tarjeta("4000123456740069", 12, 2028, "123"), BigDecimal.TEN))
                 .isInstanceOf(TarjetaRechazadaException.class).hasMessageContaining("bloqueada");
     }
 }

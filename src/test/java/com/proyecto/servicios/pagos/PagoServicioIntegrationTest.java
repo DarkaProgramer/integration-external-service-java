@@ -13,6 +13,7 @@ import com.proyecto.servicios.repositorys.ClienteRepository;
 import com.proyecto.servicios.repositorys.CuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.MovimientoCuentaRepository;
 import com.proyecto.servicios.repositorys.pagos.PagoServicioRepository;
+import com.proyecto.servicios.repositorys.pagos.TarjetaGuardadaRepository;
 import com.proyecto.servicios.seguridad.ClienteAutenticado;
 import com.proyecto.servicios.seguridad.TokenClienteService;
 import com.proyecto.servicios.service.pagos.ConciliacionPagosService;
@@ -57,6 +58,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -121,6 +124,7 @@ class PagoServicioIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private TarjetaGuardadaRepository tarjetaGuardadaRepository;
     @Autowired private TokenClienteService tokenClienteService;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CuentaRepository cuentaRepository;
@@ -144,7 +148,7 @@ class PagoServicioIntegrationTest {
     }
 
     @Test
-    @DisplayName("Pago aprobado: descuenta el saldo, registra el cargo y envía a Gestopago el Bearer y los parámetros")
+    @DisplayName("Pago aprobado con tarjeta: no toca el saldo, no registra movimientos y envía a Gestopago el Bearer y los parámetros")
     void pagoAprobado() throws Exception {
         String folio = folio(pagar(UUID.randomUUID().toString(), solicitud("1", "100", "5512345678", "100.00"), 201)
                 .andExpect(jsonPath("$.datos.estatus").value("APROBADA"))
@@ -153,7 +157,7 @@ class PagoServicioIntegrationTest {
                 .andExpect(header().string("Idempotent-Replayed", "false"))
                 .andReturn());
 
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
         assertThat(AUTHORIZATION_RECIBIDOS).containsExactly("Bearer token-secreto-gestopago");
         assertThat(PETICIONES_SEND_TX).singleElement().satisfies(p -> {
             assertThat(p).containsEntry("idServicio", "1").containsEntry("idProducto", "100")
@@ -162,7 +166,8 @@ class PagoServicioIntegrationTest {
         });
         PagoServicio pago = pagoRepository.findByFolio(folio).orElseThrow();
         assertThat(movimientoRepository.findByPagoIdOrderByIdAsc(pago.getId()))
-                .extracting(m -> m.getTipo()).containsExactly(TipoMovimiento.CARGO);
+                .isEmpty();
+        assertThat(pago.getMetodoPago()).isEqualTo("TARJETA_DEBITO");
     }
 
     @Test
@@ -175,7 +180,7 @@ class PagoServicioIntegrationTest {
 
         assertThat(folio2).isEqualTo(folio1);
         assertThat(PETICIONES_SEND_TX).hasSize(1);
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -185,7 +190,7 @@ class PagoServicioIntegrationTest {
         pagar(llave, solicitud("1", "100", "5512345678", "100.00"), 201);
         pagar(llave, solicitud("1", "100", "5599999999", "100.00"), 422)
                 .andExpect(jsonPath("$.error").value("Llave de idempotencia reutilizada"));
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -195,7 +200,7 @@ class PagoServicioIntegrationTest {
         pagar(UUID.randomUUID().toString(), body, 201);
         pagar(UUID.randomUUID().toString(), body, 409);
         assertThat(PETICIONES_SEND_TX).hasSize(1);
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -207,7 +212,7 @@ class PagoServicioIntegrationTest {
                 .andExpect(jsonPath("$.datos.estatus").value("EN_CONCILIACION"))
                 .andReturn());
 
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
         assertThat(pagoRepository.findByFolio(folio).orElseThrow().getEstatus()).isEqualTo(EstatusPago.EN_CONCILIACION);
     }
 
@@ -222,7 +227,7 @@ class PagoServicioIntegrationTest {
 
         assertThat(pagoRepository.findByFolio(folio).orElseThrow().getEstatus()).isEqualTo(EstatusPago.REVISION_MANUAL);
         assertThat(PETICIONES_SEND_TX).hasSize(1);
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
 
         // Un cliente normal no puede resolver
         mockMvc.perform(post(URL + "/conciliacion/resolver").header("Authorization", token)
@@ -247,7 +252,7 @@ class PagoServicioIntegrationTest {
     }
 
     @Test
-    @DisplayName("Rechazo explícito del proveedor: 422, se devuelve el monto y queda el reverso en la bitácora")
+    @DisplayName("Rechazo explícito del proveedor: 422, se reembolsa a la tarjeta y el saldo no cambia")
     void rechazoDevuelveFondos() throws Exception {
         RESPUESTA_SEND_TX.set(new RespuestaSimulada(200, "{\"codigo\":\"05\",\"mensaje\":\"Referencia invalida\"}", 0));
 
@@ -259,7 +264,7 @@ class PagoServicioIntegrationTest {
         assertThat(saldo()).isEqualByComparingTo("1000.00");
         PagoServicio pago = pagoRepository.findByFolio(folio).orElseThrow();
         assertThat(movimientoRepository.findByPagoIdOrderByIdAsc(pago.getId()))
-                .extracting(m -> m.getTipo()).containsExactly(TipoMovimiento.CARGO, TipoMovimiento.REVERSO);
+                .isEmpty();
     }
 
     @Test
@@ -280,16 +285,16 @@ class PagoServicioIntegrationTest {
     @DisplayName("Producto de monto variable dentro del rango: aprobado")
     void montoVariable() throws Exception {
         pagar(UUID.randomUUID().toString(), solicitud("5", "500", "123456789012", "345.50"), 201);
-        assertThat(saldo()).isEqualByComparingTo("654.50");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
-    @DisplayName("Saldo insuficiente: 422 sin llamar al proveedor")
-    void saldoInsuficiente() throws Exception {
-        pagar(UUID.randomUUID().toString(), solicitud("5", "500", "123456789012", "1000.01"), 422)
-                .andExpect(jsonPath("$.error").value("Saldo insuficiente"))
-                .andExpect(jsonPath("$.mensaje").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("1000"))));
+    @DisplayName("Sin tarjeta: 422 Tarjeta requerida y no se llama al proveedor (ya no se paga con saldo)")
+    void sinTarjeta() throws Exception {
+        pagar(UUID.randomUUID().toString(), solicitudSinTarjeta(numeroCuenta, "1", "100", "5512345678", "100.00"), 422)
+                .andExpect(jsonPath("$.error").value("Tarjeta requerida"));
         assertThat(PETICIONES_SEND_TX).isEmpty();
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -346,19 +351,19 @@ class PagoServicioIntegrationTest {
     }
 
     @Test
-    @DisplayName("Concurrencia: dos pagos simultáneos que juntos exceden el saldo, solo uno se aplica")
-    void concurrenciaSaldo() throws Exception {
-        Cliente justo = crearCliente(new BigDecimal("150.00"), true, "ACTIVA");
-        token = "Bearer " + tokenClienteService.emitir(justo.getId(), List.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS), Duration.ofMinutes(5));
-        String cuenta = justo.getCuenta().getNumeroCuenta();
+    @DisplayName("Cuenta sin saldo: el pago con tarjeta de débito se aplica igual (el saldo no interviene)")
+    void sinSaldoPagaConTarjeta() throws Exception {
+        Cliente sinSaldo = crearCliente(new BigDecimal("0.00"), true, "ACTIVA");
+        token = "Bearer " + tokenClienteService.emitir(sinSaldo.getId(), List.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS), Duration.ofMinutes(5));
+        String cuenta = sinSaldo.getCuenta().getNumeroCuenta();
 
         List<Integer> estados = enParalelo(
                 () -> pagarStatus(UUID.randomUUID().toString(), solicitud(cuenta, "1", "100", "5511111111", "100.00")),
                 () -> pagarStatus(UUID.randomUUID().toString(), solicitud(cuenta, "1", "100", "5522222222", "100.00")));
 
-        assertThat(estados).containsExactlyInAnyOrder(201, 422);
-        assertThat(cuentaRepository.findByNumeroCuenta(cuenta).orElseThrow().getSaldo()).isEqualByComparingTo("50.00");
-        assertThat(PETICIONES_SEND_TX).hasSize(1);
+        assertThat(estados).containsExactly(201, 201);
+        assertThat(cuentaRepository.findByNumeroCuenta(cuenta).orElseThrow().getSaldo()).isEqualByComparingTo("0.00");
+        assertThat(PETICIONES_SEND_TX).hasSize(2);
     }
 
     @Test
@@ -372,7 +377,7 @@ class PagoServicioIntegrationTest {
 
         assertThat(estados).containsExactlyInAnyOrder(201, 200);
         assertThat(PETICIONES_SEND_TX).hasSize(1);
-        assertThat(saldo()).isEqualByComparingTo("900.00");
+        assertThat(saldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -428,6 +433,64 @@ class PagoServicioIntegrationTest {
         pagar(UUID.randomUUID().toString(), conTarjeta(solicitud("1", "100", "5512345678", "100.00"), "5200123456754321"), 422)
                 .andExpect(jsonPath("$.datos.estatus").value("RECHAZADA"));
         assertThat(saldo()).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    @DisplayName("Tarjetas guardadas: se guardan solo marca/terminación/vencimiento, se paga con el token + CVV y se eliminan")
+    void tarjetasGuardadas() throws Exception {
+        String nueva = """
+                {"numero":"5200 1234 5675 4321","titular":"Angel Perez Lopez","mesVencimiento":11,"anioVencimiento":2029,"cvv":"321"}
+                """;
+        MvcResult creada = mockMvc.perform(post("/api/tarjetas").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(nueva))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.datos.marca").value("MASTERCARD"))
+                .andExpect(jsonPath("$.datos.ultimos4").value("4321"))
+                .andExpect(jsonPath("$.datos.vencimiento").value("11/29"))
+                .andReturn();
+        String cuerpo = creada.getResponse().getContentAsString();
+        assertThat(cuerpo).doesNotContain("5200123456754321").doesNotContain("cvv");
+        String id = objectMapper.readTree(cuerpo).path("datos").path("id").asText();
+        assertThat(id).matches("tok_[a-f0-9]{32}");
+        assertThat(tarjetaGuardadaRepository.findAll()).allSatisfy(t -> assertThat(t.toString()).doesNotContain("5200123456754321"));
+
+        mockMvc.perform(get("/api/tarjetas").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.datos.length()").value(1))
+                .andExpect(jsonPath("$.datos[0].id").value(id));
+
+        String conGuardada = agregar(solicitudSinTarjeta(numeroCuenta, "1", "100", "5512345678", "100.00"),
+                "\"tarjetaGuardadaId\":\"" + id + "\",\"cvv\":\"321\"");
+        pagar(UUID.randomUUID().toString(), conGuardada, 201)
+                .andExpect(jsonPath("$.datos.tarjeta").value("MASTERCARD •••• 4321"));
+
+        String sinCvv = agregar(solicitudSinTarjeta(numeroCuenta, "1", "100", "5512345679", "100.00"),
+                "\"tarjetaGuardadaId\":\"" + id + "\"");
+        pagar(UUID.randomUUID().toString(), sinCvv, 422).andExpect(jsonPath("$.error").value("Tarjeta inválida"));
+
+        // Otro cliente no puede usar ni borrar la tarjeta
+        Cliente otro = crearCliente(new BigDecimal("0.00"), true, "ACTIVA");
+        String tokenOtro = "Bearer " + tokenClienteService.emitir(otro.getId(), List.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS), Duration.ofMinutes(5));
+        mockMvc.perform(delete("/api/tarjetas/" + id).header("Authorization", tokenOtro)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/tarjetas").header("Authorization", tokenOtro)).andExpect(jsonPath("$.datos.length()").value(0));
+
+        mockMvc.perform(delete("/api/tarjetas/" + id).header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/tarjetas").header("Authorization", token)).andExpect(jsonPath("$.datos.length()").value(0));
+        pagar(UUID.randomUUID().toString(), agregar(solicitudSinTarjeta(numeroCuenta, "1", "100", "5512345670", "100.00"),
+                "\"tarjetaGuardadaId\":\"" + id + "\",\"cvv\":\"321\""), 404);
+    }
+
+    @Test
+    @DisplayName("Pagar con una tarjeta nueva marcando 'guardar': la tarjeta queda guardada para el siguiente pago")
+    void pagarYGuardarTarjeta() throws Exception {
+        pagar(UUID.randomUUID().toString(), agregar(solicitud("1", "100", "5512345678", "100.00"), "\"guardarTarjeta\":true"), 201);
+        pagar(UUID.randomUUID().toString(), agregar(solicitud("1", "100", "5512345679", "100.00"), "\"guardarTarjeta\":true"), 201);
+
+        mockMvc.perform(get("/api/tarjetas").header("Authorization", token))
+                .andExpect(jsonPath("$.datos.length()").value(1))
+                .andExpect(jsonPath("$.datos[0].ultimos4").value("9010"))
+                .andExpect(jsonPath("$.datos[0].marca").value("VISA"));
+        mockMvc.perform(get("/api/tarjetas")).andExpect(status().isUnauthorized());
     }
 
     // ─────────────────────────────────────────────
@@ -488,18 +551,28 @@ class PagoServicioIntegrationTest {
         return solicitud(numeroCuenta, idServicio, idProducto, referencia, monto);
     }
 
+    static final String TARJETA_DEBITO = "4000123456759010";
+
     private static String conTarjeta(String solicitud, String numero) {
-        String tarjeta = """
-                ,"tarjeta":{"numero":"%s","titular":"Angel Perez Lopez","mesVencimiento":12,"anioVencimiento":2030,"cvv":"123"}}
-                """.formatted(numero).strip();
-        return solicitud.strip().replaceFirst("}$", tarjeta);
+        return solicitud.replace(TARJETA_DEBITO, numero);
+    }
+
+    private static String agregar(String solicitud, String json) {
+        return solicitud.strip().replaceFirst("}$", "," + json + "}");
     }
 
     private String solicitudCuenta(String cuenta) {
         return solicitud(cuenta, "1", "100", "5512345678", "100.00");
     }
 
+    /** Solicitud con una tarjeta de débito nueva (sin guardarla). */
     private String solicitud(String cuenta, String idServicio, String idProducto, String referencia, String monto) {
+        return agregar(solicitudSinTarjeta(cuenta, idServicio, idProducto, referencia, monto), """
+                "tarjeta":{"numero":"%s","titular":"Angel Perez Lopez","mesVencimiento":12,"anioVencimiento":2030,"cvv":"123"}
+                """.formatted(TARJETA_DEBITO).strip());
+    }
+
+    private String solicitudSinTarjeta(String cuenta, String idServicio, String idProducto, String referencia, String monto) {
         return """
                 {"numeroCuenta":"%s","idServicio":"%s","idProducto":"%s","referencia":"%s","validacionId":"%s","monto":%s}
                 """.formatted(cuenta, idServicio, idProducto, referencia, validacion(idServicio, idProducto, referencia), monto);

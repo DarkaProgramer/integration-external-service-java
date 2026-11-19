@@ -14,11 +14,13 @@ import PaymentResult from '../components/PaymentResult';
 import EmptyState from '../components/EmptyState';
 import { formatoMoneda, nuevaIdempotencyKey } from '../utils/formato';
 import { validarReferencia } from '../utils/validacion';
-import { formatearNumero, formatearVencimiento, marca, tarjetaParaApi, validarTarjeta } from '../utils/tarjeta';
+import { tarjetaParaApi, validarTarjeta } from '../utils/tarjeta';
+import { tarjetasApi } from '../api/tarjetasApi';
+import FormularioTarjeta, { TARJETA_VACIA, descripcionTarjeta } from '../components/FormularioTarjeta';
 
 const VIGENCIA_VALIDACION_MS = 10 * 60 * 1000;
 const PASOS = ['Referencia', 'Pago con tarjeta', 'Comprobante'];
-const TARJETA_VACIA = { numero: '', titular: '', vencimiento: '', cvv: '' };
+const NUEVA = 'nueva';
 
 function mensajeValidacion(error) {
   if (error?.status === 503) {
@@ -48,6 +50,17 @@ export default function PayPage() {
   // Datos de la tarjeta: solo en memoria durante el pago (no se guardan en el navegador ni en el servidor)
   const [tarjeta, setTarjeta] = useState(TARJETA_VACIA);
   const llaveIdempotencia = useRef(null);
+  // Tarjetas guardadas (solo marca, terminación y vencimiento) y la que se eligió para este pago
+  const { datos: tarjetasGuardadas, cargando: cargandoTarjetas, recargar: recargarTarjetas } = useAsync(() => tarjetasApi.listar().catch(() => []), []);
+  const [seleccion, setSeleccion] = useState(null); // token de una tarjeta guardada o NUEVA
+  const [cvvGuardada, setCvvGuardada] = useState('');
+  const [guardarTarjeta, setGuardarTarjeta] = useState(true);
+  const usables = (tarjetasGuardadas ?? []).filter((t) => !t.vencida);
+
+  // Si tiene tarjetas guardadas se propone la más reciente; si no, el formulario de tarjeta nueva.
+  useEffect(() => {
+    if (seleccion == null && tarjetasGuardadas) setSeleccion(usables[0]?.id ?? NUEVA);
+  }, [tarjetasGuardadas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cuenta regresiva de la validación (10 min, un solo uso).
   useEffect(() => {
@@ -67,7 +80,13 @@ export default function PayPage() {
   // Pago de contado: si el proveedor informa un adeudo se paga completo, en un solo cargo a la tarjeta de débito.
   const adeudo = validacion?.montoAdeudo ? Number(validacion.montoAdeudo) : null;
   const montoFinal = adeudo ?? (producto.montoVariable ? Number(monto) : Number(validacion?.precio ?? producto.precio));
-  const marcaTarjeta = marca(tarjeta.numero);
+  const usarNueva = seleccion === NUEVA || !usables.some((t) => t.id === seleccion);
+  const elegir = (id) => {
+    setSeleccion(id);
+    setCvvGuardada('');
+    setErrores({});
+    setErrorPago(null);
+  };
   const cambiarTarjeta = (campo, valor) => {
     setTarjeta((t) => ({ ...t, [campo]: valor }));
     if (errores[campo]) setErrores((er) => ({ ...er, [campo]: undefined }));
@@ -113,7 +132,7 @@ export default function PayPage() {
 
   const pagar = async () => {
     const errMonto = validarMonto();
-    const errTarjeta = validarTarjeta(tarjeta);
+    const errTarjeta = usarNueva ? validarTarjeta(tarjeta) : (/^\d{3}$/.test(cvvGuardada) ? {} : { cvvGuardada: 'Escribe los 3 dígitos del reverso' });
     setErrores({ monto: errMonto, ...errTarjeta });
     if (errMonto || Object.keys(errTarjeta).length) return;
     setPagando(true);
@@ -127,13 +146,17 @@ export default function PayPage() {
           referencia: referencia.trim(),
           validacionId: validacion.validacionId,
           monto: montoFinal,
-          tarjeta: tarjetaParaApi(tarjeta),
+          ...(usarNueva
+            ? { tarjeta: tarjetaParaApi(tarjeta), guardarTarjeta }
+            : { tarjetaGuardadaId: seleccion, cvv: cvvGuardada }),
         },
         llaveIdempotencia.current,
       );
       setResultado(pago);
       setPaso(2);
       setTarjeta(TARJETA_VACIA);
+      setCvvGuardada('');
+      if (usarNueva && guardarTarjeta) recargarTarjetas();
       llaveIdempotencia.current = null;
     } catch (err) {
       // Error de red: se conserva la misma llave para que "Reintentar" no cobre dos veces.
@@ -158,6 +181,9 @@ export default function PayPage() {
     setPaso(0);
     setValidacion(null);
     setTarjeta(TARJETA_VACIA);
+    setCvvGuardada('');
+    setSeleccion(null);
+    recargarTarjetas();
     setResultado(null);
     setErrorPago(null);
     setErrorValidacion(null);
@@ -220,21 +246,51 @@ export default function PayPage() {
             ]}
           />
           <div className="total"><span>Total a pagar</span><strong>{montoFinal > 0 ? formatoMoneda(montoFinal) : '—'}</strong></div>
-          <div className="formulario tarjeta-pago">
-            <Field label={`Número de tarjeta${marcaTarjeta && marcaTarjeta !== 'AMEX' ? ` · ${marcaTarjeta}` : ''}`} value={tarjeta.numero}
-              inputMode="numeric" autoComplete="cc-number" placeholder="0000 0000 0000 0000" maxLength={19}
-              onChange={(e) => cambiarTarjeta('numero', formatearNumero(e.target.value))} error={errores.numero}
-              ayuda="Solo tarjetas de débito Visa o Mastercard" />
-            <Field label="Nombre del titular" value={tarjeta.titular} autoComplete="cc-name" placeholder="Como aparece en la tarjeta"
-              onChange={(e) => cambiarTarjeta('titular', e.target.value.toUpperCase())} error={errores.titular} />
-            <div className="rejilla-2">
-              <Field label="Vencimiento" value={tarjeta.vencimiento} inputMode="numeric" autoComplete="cc-exp" placeholder="MM/AA" maxLength={5}
-                onChange={(e) => cambiarTarjeta('vencimiento', formatearVencimiento(e.target.value))} error={errores.vencimiento} />
-              <Field label="CVV" type="password" value={tarjeta.cvv} inputMode="numeric" autoComplete="cc-csc" placeholder="123" maxLength={3}
-                onChange={(e) => cambiarTarjeta('cvv', e.target.value.replace(/\D/g, '').slice(0, 3))} error={errores.cvv} />
-            </div>
-            <p className="texto-chico texto-suave">🔒 No guardamos el número completo ni el CVV: en tu comprobante solo aparecen los últimos 4 dígitos.</p>
-          </div>
+          <h3>Tarjeta de débito</h3>
+          {cargandoTarjetas && !tarjetasGuardadas ? <Spinner texto="Buscando tus tarjetas…" /> : (
+            <>
+              {usables.length > 0 && (
+                <ul className="lista-tarjetas" role="radiogroup" aria-label="Tarjetas guardadas">
+                  {usables.map((t) => (
+                    <li key={t.id} className={seleccion === t.id ? 'seleccionada' : ''}>
+                      <label>
+                        <input type="radio" name="tarjeta" checked={seleccion === t.id} onChange={() => elegir(t.id)} />
+                        <span className="tarjeta-icono" aria-hidden>💳</span>
+                        <div>
+                          <strong>{descripcionTarjeta(t)}</strong>
+                          <div className="texto-suave texto-chico">{t.titular} · Vence {t.vencimiento}</div>
+                        </div>
+                      </label>
+                    </li>
+                  ))}
+                  <li className={usarNueva ? 'seleccionada' : ''}>
+                    <label>
+                      <input type="radio" name="tarjeta" checked={usarNueva} onChange={() => elegir(NUEVA)} />
+                      <span className="tarjeta-icono" aria-hidden>＋</span>
+                      <div><strong>Agregar una tarjeta nueva</strong></div>
+                    </label>
+                  </li>
+                </ul>
+              )}
+              {!usarNueva && (
+                <Field className="cvv-guardada" label="CVV" type="password" value={cvvGuardada} inputMode="numeric" autoComplete="cc-csc"
+                  placeholder="123" maxLength={3} autoFocus error={errores.cvvGuardada}
+                  onChange={(e) => { setCvvGuardada(e.target.value.replace(/\D/g, '').slice(0, 3)); setErrores((er) => ({ ...er, cvvGuardada: undefined })); }}
+                  ayuda="Por seguridad se pide en cada pago" />
+              )}
+              {usarNueva && (
+                <>
+                  {usables.length === 0 && <p className="texto-suave texto-chico">No tienes tarjetas guardadas. Agrega tu tarjeta de débito para pagar.</p>}
+                  <FormularioTarjeta tarjeta={tarjeta} errores={errores} onChange={cambiarTarjeta} />
+                  <label className="check-guardar">
+                    <input type="checkbox" checked={guardarTarjeta} onChange={(e) => setGuardarTarjeta(e.target.checked)} />
+                    Guardar esta tarjeta para mis próximos pagos
+                  </label>
+                </>
+              )}
+              <p className="texto-chico texto-suave">🔒 No guardamos el número completo ni el CVV: solo la marca, los últimos 4 dígitos y el vencimiento.</p>
+            </>
+          )}
           {vencida && <Alert tipo="aviso" titulo="La validación venció">Vuelve a validar la referencia para continuar.</Alert>}
           {errorPago && (
             <ErrorApi error={errorPago.esDeRed ? { ...errorPago, message: `${errorPago.message} Puedes reintentar: no se cobrará dos veces.` } : errorPago} />

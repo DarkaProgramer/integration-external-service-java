@@ -56,7 +56,7 @@ class PagoServicioServiceImplTest {
     @Mock private PagoServicioTransacciones transacciones;
     @Mock private PagoServicioRepository pagoRepository;
     @Mock private com.proyecto.servicios.service.pagos.ValidacionReferenciaService validacionReferencia;
-    @Mock private com.proyecto.servicios.service.pagos.ProcesadorTarjetas tarjetas;
+    @Mock private com.proyecto.servicios.service.pagos.TarjetasService tarjetas;
 
     private PagoServicioServiceImpl service;
     private String llave;

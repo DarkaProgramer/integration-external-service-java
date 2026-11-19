@@ -10,7 +10,7 @@ import com.proyecto.servicios.exception.pagos.ClienteInactivoException;
 import com.proyecto.servicios.exception.pagos.CuentaNoOperableException;
 import com.proyecto.servicios.exception.pagos.LimiteDiarioExcedidoException;
 import com.proyecto.servicios.exception.pagos.OperacionNoAutorizadaException;
-import com.proyecto.servicios.exception.pagos.SaldoInsuficienteException;
+import com.proyecto.servicios.exception.pagos.MedioPagoRequeridoException;
 import com.proyecto.servicios.exception.pagos.SolicitudDuplicadaException;
 import com.proyecto.servicios.exception.pagos.ValidacionYaUsadaException;
 import com.proyecto.servicios.model.pagos.PagoServicioRequestDto;
@@ -64,8 +64,8 @@ public class PagoServicioTransacciones {
     static final String METODO_SALDO = "SALDO";
 
     /**
-     * Paso 1: valida cliente y cuenta, descuenta el saldo (o asocia el cargo ya autorizado a la tarjeta de débito)
-     * y registra el pago PENDIENTE, todo en una transacción
+     * Paso 1: valida cliente y cuenta, asocia el cargo ya autorizado a la tarjeta de débito y registra el pago
+     * PENDIENTE, todo en una transacción
      * con la fila de la cuenta bloqueada (SELECT ... FOR UPDATE). Si algo falla, no queda cargo ni registro.
      *
      * @return el pago existente si otra petición con la misma llave se adelantó, o el nuevo pago
@@ -96,11 +96,8 @@ public class PagoServicioTransacciones {
             throw new LimiteDiarioExcedidoException();
         }
         if (tarjeta == null) {
-            // Método anterior (app móvil): cargo al saldo de la cuenta
-            if (cuenta.getSaldo().compareTo(monto) < 0) {
-                throw new SaldoInsuficienteException();
-            }
-            cuenta.setSaldo(cuenta.getSaldo().subtract(monto));
+            // Los pagos solo se cobran con tarjeta de débito: el saldo de la cuenta ya no se usa
+            throw new MedioPagoRequeridoException();
         }
 
         PagoServicio pago = new PagoServicio();
@@ -117,22 +114,15 @@ public class PagoServicioTransacciones {
         pago.setMonto(monto);
         pago.setEstatus(EstatusPago.PENDIENTE);
         pago.setCreatedAt(ahora);
-        if (tarjeta != null) {
-            pago.setMetodoPago(METODO_TARJETA);
-            pago.setTarjetaMarca(tarjeta.marca());
-            pago.setTarjetaUltimos4(tarjeta.ultimos4());
-            pago.setAutorizacionTarjeta(tarjeta.codigo());
-        } else {
-            pago.setMetodoPago(METODO_SALDO);
-        }
+        pago.setMetodoPago(METODO_TARJETA);
+        pago.setTarjetaMarca(tarjeta.marca());
+        pago.setTarjetaUltimos4(tarjeta.ultimos4());
+        pago.setAutorizacionTarjeta(tarjeta.codigo());
         pagoRepository.save(pago);
         // La validación de la referencia se consume en la misma transacción: si otra petición la usó primero,
         // se revierte todo (sin cargo)
         if (validacionRepository.marcarUsada(solicitud.getValidacionId().toLowerCase(), pago.getFolio(), ahora) != 1) {
             throw new ValidacionYaUsadaException();
-        }
-        if (tarjeta == null) {
-            movimientoRepository.save(new MovimientoCuenta(cuenta, pago, TipoMovimiento.CARGO, monto));
         }
         return new Reserva(pago, true);
     }
@@ -190,6 +180,7 @@ public class PagoServicioTransacciones {
                     pago.getAutorizacionTarjeta()), pago.getMonto());
             return;
         }
+        // Solo pagos anteriores al cobro con tarjeta (se cobraron del saldo): se devuelven al saldo.
         // La restricción única (pago_id, tipo) es la última defensa contra una doble devolución
         if (movimientoRepository.existsByPagoIdAndTipo(pago.getId(), TipoMovimiento.REVERSO)) {
             return;
