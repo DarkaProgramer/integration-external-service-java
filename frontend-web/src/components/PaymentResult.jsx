@@ -30,6 +30,9 @@ export default function PaymentResult({ pago, children }) {
           ['Fecha', formatoFecha(pago.fechaOperacion)],
         ]}
       />
+      {pago.resultado === 'EXITOSO' && (
+        <button type="button" className="btn btn-texto no-imprimir" onClick={() => window.print()}>🖨️ Imprimir o guardar comprobante (PDF)</button>
+      )}
       {children}
     </div>
   );

@@ -161,6 +161,10 @@ export default function PayPage() {
     } catch (err) {
       // Error de red: se conserva la misma llave para que "Reintentar" no cobre dos veces.
       setErrorPago(err);
+      if (err?.status === 404 && !usarNueva) {
+        setSeleccion(null);
+        recargarTarjetas();
+      }
     } finally {
       setPagando(false);
     }
@@ -243,6 +247,7 @@ export default function PayPage() {
               ['Referencia', validacion.referencia],
               ['Adeudo total', adeudo != null ? formatoMoneda(adeudo) : null],
               ['Forma de pago', 'Tarjeta de débito, de contado (un solo cargo, sin meses ni crédito)'],
+              ['Comisión', formatoMoneda(0)],
             ]}
           />
           <div className="total"><span>Total a pagar</span><strong>{montoFinal > 0 ? formatoMoneda(montoFinal) : '—'}</strong></div>

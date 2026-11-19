@@ -141,7 +141,7 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
 .logo-iniciales { display: inline-grid; place-items: center; color: #fff; font-weight: 700; border: 0; }
 
 /* ---------- Layout de la app ---------- */
-.barra { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--superficie) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--borde); }
+.barra { position: sticky; top: 0; z-index: 10; background: var(--superficie); border-bottom: 1px solid var(--borde); box-shadow: 0 1px 8px rgb(0 0 0 / .08); }
 .barra-contenido { max-width: 1120px; margin: 0 auto; padding: .75rem 1rem; display: flex; align-items: center; gap: 1rem; }
 .marca { display: inline-flex; align-items: center; gap: .55rem; font-weight: 800; font-size: 1.1rem; color: var(--texto); text-decoration: none !important; }
 .marca-logo { width: 2rem; height: 2rem; border-radius: 9px; background: var(--primario); color: #fff; display: grid; place-items: center; font-weight: 800; }
@@ -275,3 +275,25 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; w
 .tarjeta-icono { font-size: 1.4rem; }
 .cvv-guardada { max-width: 9rem; margin: 0 0 0 2rem; }
 .check-guardar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0 .75rem; font-size: .95rem; }
+
+/* Vista previa de la tarjeta */
+.tarjeta-preview { position: relative; aspect-ratio: 1.586; max-width: 340px; width: 100%; margin: .25rem auto 1rem; border-radius: 16px; padding: 1.1rem 1.25rem; color: #fff; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 10px 25px rgb(0 0 0 / .25); background: linear-gradient(135deg, #334155, #0f172a); font-variant-numeric: tabular-nums; }
+.tarjeta-preview.visa { background: linear-gradient(135deg, #1e3a8a, #1d4ed8 55%, #0ea5e9); }
+.tarjeta-preview.mastercard { background: linear-gradient(135deg, #111827, #7c2d12 60%, #ea580c); }
+.tarjeta-preview .tp-arriba { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+.tarjeta-preview .tp-chip { width: 42px; height: 30px; border-radius: 6px; background: linear-gradient(135deg, #fde68a, #d97706); }
+.tarjeta-preview .tp-numero { font-size: clamp(1rem, 4.5vw, 1.35rem); letter-spacing: .12em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tarjeta-preview .tp-abajo { display: flex; justify-content: space-between; gap: 1rem; font-size: .8rem; text-transform: uppercase; }
+.tarjeta-preview .tp-abajo small { display: block; opacity: .7; font-size: .65rem; }
+.tarjeta-preview .tp-titular { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-marca { font-weight: 800; font-style: italic; font-size: 1.1rem; letter-spacing: 0; text-transform: none; }
+.tarjetas-prueba { font-size: .85rem; margin: .25rem 0 .75rem; }
+.tarjetas-prueba summary { cursor: pointer; color: var(--texto-suave); }
+.tarjetas-prueba ul { margin: .5rem 0 0; padding-left: 1.1rem; }
+.tarjetas-prueba code { cursor: pointer; }
+
+@media print {
+  .barra, .no-imprimir, .acciones, .volver, .stepper, .pago-producto, .alerta { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .comprobante { box-shadow: none !important; border: 1px solid #ccc; }
+}
