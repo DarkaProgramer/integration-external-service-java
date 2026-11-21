@@ -23,11 +23,18 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
     private final GestoPagoTokenRepository tokenRepository;
     private final GestoPagoTokenMapper tokenMapper;
 
-    @Value("${gestopago.auth.id-distribuidor}")
     private Integer idDistribuidor;
-
-    @Value("${gestopago.auth.codigo-dispositivo}")
     private String codigoDispositivo;
+
+    @Value("${gestopago.auth.id-distribuidor:}")
+    void setIdDistribuidor(String valor) {
+        this.idDistribuidor = com.proyecto.servicios.config.GestoPagoCredenciales.idDistribuidor(valor);
+    }
+
+    @Value("${gestopago.auth.codigo-dispositivo:}")
+    void setCodigoDispositivo(String valor) {
+        this.codigoDispositivo = com.proyecto.servicios.config.GestoPagoCredenciales.codigoDispositivo(valor);
+    }
 
     @Value("${gestopago.auth.password}")
     private String password;
@@ -56,7 +63,11 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             GestoPagoAuthResponse response = gestoPagoAuthClient.authenticate(credenciales);
 
             if (response == null || response.getToken() == null || response.getToken().isBlank()) {
-                log.error("La respuesta de GestoPago no contiene token: status={}", response == null ? null : response.getStatus());
+                // El mensaje de Gestopago explica el rechazo (credenciales, bloqueo, etc.) y no contiene secretos
+                log.error("La respuesta de GestoPago no contiene token: status={}, mensaje={}, idDistribuidor={}",
+                        response == null ? null : response.getStatus(),
+                        response == null || response.getMessage() == null ? "-" : recortar(response.getMessage()),
+                        idDistribuidor);
                 return;
             }
 
@@ -82,6 +93,11 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
             log.error("Error al renovar token GestoPago: causa={}{}", e.getClass().getSimpleName(),
                     e instanceof feign.FeignException f && f.status() > 0 ? ", HTTP " + f.status() : "");
         }
+    }
+
+    private static String recortar(String texto) {
+        String limpio = texto.replaceAll("\\s+", " ").strip();
+        return limpio.length() > 200 ? limpio.substring(0, 200) + "…" : limpio;
     }
 
     @Override

@@ -43,24 +43,29 @@ public class GestoPagoBearerToken {
     private final AtomicReference<Instant> ultimoFallo = new AtomicReference<>();
 
     public GestoPagoBearerToken(GestoPagoTokenService tokenService,
-                                @Value("${gestopago.auth.id-distribuidor}") Integer idDistribuidor,
-                                @Value("${gestopago.auth.codigo-dispositivo}") String codigoDispositivo,
+                                @Value("${gestopago.auth.id-distribuidor:}") String idDistribuidor,
+                                @Value("${gestopago.auth.codigo-dispositivo:}") String codigoDispositivo,
                                 @Value("${gestopago.auth.password:}") String password,
                                 @Value("${gestopago.auth.refresh-rate-ms:3600000}") long refrescoMs,
                                 @Value("${gestopago.base-url:}") String urlBase,
                                 @Value("${gestopago.products.bearer-token:}") String tokenProductos,
                                 @Value("${gestopago.auth.espera-tras-fallo-segundos:60}") long esperaTrasFalloSegundos) {
         this.tokenService = tokenService;
-        this.idDistribuidor = idDistribuidor;
-        this.codigoDispositivo = codigoDispositivo;
+        this.idDistribuidor = GestoPagoCredenciales.idDistribuidor(idDistribuidor);
+        this.codigoDispositivo = GestoPagoCredenciales.codigoDispositivo(codigoDispositivo);
         this.password = password;
         // Se considera vigente hasta dos ciclos de renovación (si una renovación falla, aún hay margen)
         this.vigencia = Duration.ofMillis(refrescoMs * 2);
         this.esperaTrasFallo = Duration.ofSeconds(Math.max(0, esperaTrasFalloSegundos));
         // Resumen al arrancar (sin secretos) para revisar en los logs de Render qué variables llegaron
-        log.info("Configuración GestoPago: url={}, idDistribuidor={}, GESTOPAGO_PASSWORD={}, GESTOPAGO_PRODUCTS_TOKEN={}",
-                urlBase, idDistribuidor, StringUtils.isNotBlank(password) ? "configurada" : "FALTA",
+        log.info("Configuración GestoPago: url={}, idDistribuidor={}, codigoDispositivo={}, GESTOPAGO_PASSWORD={}, GESTOPAGO_PRODUCTS_TOKEN={}",
+                urlBase, this.idDistribuidor, this.codigoDispositivo,
+                StringUtils.isNotBlank(password) ? "configurada" : "FALTA",
                 StringUtils.isNotBlank(tokenProductos) ? "configurado" : "no");
+        if (!String.valueOf(this.idDistribuidor).equals(StringUtils.strip(idDistribuidor))) {
+            log.warn("GESTOPAGO_ID_DISTRIBUIDOR vacía o inválida ({}): se usa el distribuidor {}",
+                    StringUtils.defaultIfBlank(idDistribuidor, "sin valor"), this.idDistribuidor);
+        }
     }
 
     /**
