@@ -18,9 +18,11 @@ void main() {
       'monto': 100,
       'tarjeta': 'Visa •••• 9010',
       'autorizacion': 'A1',
+      'autorizacionProveedor': '48213907',
       'fechaOperacion': '2026-11-19T10:00:00',
     });
     expect(pago.tarjeta, 'Visa •••• 9010');
+    expect(pago.autorizacionProveedor, '48213907');
     final bytes = await ComprobantePdf.generar(pago);
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
   });

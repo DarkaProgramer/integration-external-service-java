@@ -77,6 +77,10 @@ public class PagoServicio {
     @Column(name = "folio_proveedor", length = 64)
     private String folioProveedor;
 
+    /** Número de autorización que devuelve Gestopago cuando aplica el pago (se muestra en el comprobante). */
+    @Column(name = "autorizacion_proveedor", length = 64)
+    private String autorizacionProveedor;
+
     /** Código de respuesta del proveedor o de la capa HTTP (p. ej. HTTP_504). Solo para soporte interno. */
     @Column(name = "codigo_proveedor", length = 30)
     private String codigoProveedor;

@@ -47,7 +47,7 @@ Los pasos 1 a 10 no tienen efectos: si cualquiera falla no hay cargo, registro n
 |---|---|---|
 | `POST /api/pagos/servicios` | Pagar | `pagos:servicios` |
 | `POST /api/pagos/servicios/consultar` `{folio}` | Ver el estatus de un pago propio | `pagos:servicios` |
-| `POST /api/pagos/servicios/conciliacion/resolver` `{folio, resultado, folioProveedor}` | Operador resuelve un pago dudoso | `pagos:conciliar` |
+| `POST /api/pagos/servicios/conciliacion/resolver` `{folio, resultado, folioProveedor, autorizacionProveedor}` | Operador resuelve un pago dudoso | `pagos:conciliar` |
 | `POST /api/dev/token` `{clienteId}` | Solo perfil `dev`: emite un token de prueba | — |
 
 (Se mantiene la convención del proyecto: datos en el cuerpo, sin `@PathVariable`/`@RequestParam`.)

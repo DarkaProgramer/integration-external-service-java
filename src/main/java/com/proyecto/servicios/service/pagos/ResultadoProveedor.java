@@ -3,9 +3,11 @@ package com.proyecto.servicios.service.pagos;
 /**
  * Resultado clasificado de una operación con el proveedor.
  *
- * @param codigo código del proveedor o de transporte (p. ej. "HTTP_503", "TIMEOUT"); solo para uso interno
+ * @param folioProveedor        folio/identificador de la transacción que asigna Gestopago
+ * @param autorizacionProveedor número de autorización que devuelve Gestopago al aplicar el pago
+ * @param codigo                código del proveedor o de transporte (p. ej. "HTTP_503", "TIMEOUT"); solo para uso interno
  */
-public record ResultadoProveedor(Estado estado, String folioProveedor, String codigo) {
+public record ResultadoProveedor(Estado estado, String folioProveedor, String autorizacionProveedor, String codigo) {
 
     public enum Estado {
         /** El proveedor confirmó que procesó el pago. */
@@ -17,14 +19,18 @@ public record ResultadoProveedor(Estado estado, String folioProveedor, String co
     }
 
     public static ResultadoProveedor aprobada(String folioProveedor, String codigo) {
-        return new ResultadoProveedor(Estado.APROBADA, folioProveedor, codigo);
+        return aprobada(folioProveedor, null, codigo);
+    }
+
+    public static ResultadoProveedor aprobada(String folioProveedor, String autorizacionProveedor, String codigo) {
+        return new ResultadoProveedor(Estado.APROBADA, folioProveedor, autorizacionProveedor, codigo);
     }
 
     public static ResultadoProveedor rechazada(String codigo) {
-        return new ResultadoProveedor(Estado.RECHAZADA, null, codigo);
+        return new ResultadoProveedor(Estado.RECHAZADA, null, null, codigo);
     }
 
     public static ResultadoProveedor indeterminada(String codigo) {
-        return new ResultadoProveedor(Estado.INDETERMINADA, null, codigo);
+        return new ResultadoProveedor(Estado.INDETERMINADA, null, null, codigo);
     }
 }

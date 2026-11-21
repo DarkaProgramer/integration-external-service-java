@@ -155,7 +155,8 @@ public class PagoServicioServiceImpl implements PagoServicioService {
             throw new EstadoPagoInvalidoException();
         }
         ResultadoProveedor resultado = "APROBADA".equals(resolucion.getResultado())
-                ? ResultadoProveedor.aprobada(resolucion.getFolioProveedor(), "MANUAL")
+                ? ResultadoProveedor.aprobada(resolucion.getFolioProveedor(),
+                        resolucion.getAutorizacionProveedor(), "MANUAL")
                 : ResultadoProveedor.rechazada("MANUAL");
         PagoServicio actualizado = transacciones.aplicarResultado(pago.getId(), resultado);
         log.warn("Pago resuelto manualmente: folio={} estatus={} operador={}", actualizado.getFolio(),

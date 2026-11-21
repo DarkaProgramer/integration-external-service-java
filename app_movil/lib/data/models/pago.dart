@@ -32,6 +32,7 @@ class Pago {
     this.referencia,
     this.monto,
     this.folioProveedor,
+    this.autorizacionProveedor,
     this.fechaOperacion,
     this.tarjeta,
     this.autorizacion,
@@ -48,6 +49,9 @@ class Pago {
   final String? referencia;
   final double? monto;
   final String? folioProveedor;
+
+  /// Número de autorización que devolvió Gestopago al aplicar el pago.
+  final String? autorizacionProveedor;
   final DateTime? fechaOperacion;
 
   /// Tarjeta de débito con la que se pagó (p. ej. "Visa •••• 9010").
@@ -68,6 +72,7 @@ class Pago {
         referencia: asString(j['referencia']),
         monto: asDouble(j['monto']),
         folioProveedor: asString(j['folioProveedor']),
+        autorizacionProveedor: asString(j['autorizacionProveedor']),
         fechaOperacion: asDate(j['fechaOperacion']),
         tarjeta: asString(j['tarjeta']),
         autorizacion: asString(j['autorizacion']),

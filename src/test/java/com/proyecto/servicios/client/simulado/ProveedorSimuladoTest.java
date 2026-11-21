@@ -49,4 +49,15 @@ class ProveedorSimuladoTest {
         assertThat(pagos.enviarPago(new SolicitudPagoProveedor("F2", "201", "1", "123456789999", BigDecimal.TEN)).estado())
                 .isEqualTo(ResultadoProveedor.Estado.RECHAZADA);
     }
+
+    @Test
+    void pagoSimulado_devuelveNumeroDeAutorizacionEstable() {
+        PagosSimulados pagos = new PagosSimulados();
+        SolicitudPagoProveedor solicitud = new SolicitudPagoProveedor("F1", "201", "1", "123456781234", BigDecimal.TEN);
+
+        String autorizacion = pagos.enviarPago(solicitud).autorizacionProveedor();
+
+        assertThat(autorizacion).matches("\\d{8}");
+        assertThat(pagos.consultarEstado(solicitud).orElseThrow().autorizacionProveedor()).isEqualTo(autorizacion);
+    }
 }

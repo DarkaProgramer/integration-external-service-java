@@ -23,4 +23,8 @@ public class ResolucionManualRequestDto {
     @Size(max = 64, message = "El folio del proveedor admite como máximo 64 caracteres")
     @Pattern(regexp = "^[A-Za-z0-9-]*$", message = "El folio del proveedor solo admite letras, dígitos y guiones")
     private String folioProveedor;
+
+    @Size(max = 64, message = "La autorización del proveedor admite como máximo 64 caracteres")
+    @Pattern(regexp = "^[A-Za-z0-9-]*$", message = "La autorización del proveedor solo admite letras, dígitos y guiones")
+    private String autorizacionProveedor;
 }

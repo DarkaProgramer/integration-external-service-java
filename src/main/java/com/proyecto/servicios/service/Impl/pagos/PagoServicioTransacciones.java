@@ -142,6 +142,7 @@ public class PagoServicioTransacciones {
             case APROBADA -> {
                 pago.setEstatus(EstatusPago.APROBADA);
                 pago.setFolioProveedor(resultado.folioProveedor());
+                pago.setAutorizacionProveedor(resultado.autorizacionProveedor());
             }
             case RECHAZADA -> {
                 devolverFondos(pago);

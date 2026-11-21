@@ -63,6 +63,13 @@ public record RespuestaGestoPago(String nombre, Map<String, String> valores, Lis
         return Optional.empty();
     }
 
+    /** Nombres de todos los campos de la respuesta (sin valores), para diagnóstico en logs. */
+    public java.util.Set<String> nombresDeCampos() {
+        java.util.Set<String> nombres = new java.util.TreeSet<>(valores.keySet());
+        hijos.forEach(h -> nombres.addAll(h.nombresDeCampos()));
+        return nombres;
+    }
+
     public List<RespuestaGestoPago> buscarNodos(Predicate<RespuestaGestoPago> criterio) {
         List<RespuestaGestoPago> encontrados = new ArrayList<>();
         recolectar(criterio, encontrados);

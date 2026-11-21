@@ -16,6 +16,7 @@ class ComprobantePdf {
       ('Estado', p.resultado.label),
       ('Folio', p.folio),
       ('Folio del proveedor', p.folioProveedor),
+      ('Autorización Gestopago', p.autorizacionProveedor),
       ('Servicio', p.servicio),
       ('Producto', p.producto),
       ('Referencia', p.referencia),

@@ -78,6 +78,35 @@ class GestoPagoPagosGatewayTest {
     }
 
     @Test
+    void codigoDeExito_guardaNumeroDeAutorizacionDeGestopago() {
+        when(client.sendTx(anyMap())).thenReturn(
+                "<R><CODIGO>00</CODIGO><TRANSACCION>GP-9</TRANSACCION><NUM_AUTORIZACION>48213907</NUM_AUTORIZACION></R>");
+
+        ResultadoProveedor r = gateway.enviarPago(SOLICITUD);
+
+        assertThat(r.folioProveedor()).isEqualTo("GP-9");
+        assertThat(r.autorizacionProveedor()).isEqualTo("48213907");
+    }
+
+    @Test
+    void codigoDeExitoJson_autorizacionSinFolio_seUsaComoFolio() {
+        when(client.sendTx(anyMap())).thenReturn("{\"codigo\":\"00\",\"autorizacion\":\"77120\"}");
+
+        ResultadoProveedor r = gateway.enviarPago(SOLICITUD);
+
+        assertThat(r.autorizacionProveedor()).isEqualTo("77120");
+        assertThat(r.folioProveedor()).isEqualTo("77120");
+    }
+
+    @Test
+    void campoDeAutorizacionConfigurado_seUsaPrimero() {
+        GestoPagoPagosGateway conCampo = new GestoPagoPagosGateway(client, Set.of("00"), Set.of(), "", "folioAut");
+        when(client.sendTx(anyMap())).thenReturn("<R><CODIGO>00</CODIGO><FOLIOAUT>99001</FOLIOAUT></R>");
+
+        assertThat(conCampo.enviarPago(SOLICITUD).autorizacionProveedor()).isEqualTo("99001");
+    }
+
+    @Test
     void codigoDeRechazoConfigurado_rechazada() {
         when(client.sendTx(anyMap())).thenReturn("{\"codigo\":\"14\"}");
 

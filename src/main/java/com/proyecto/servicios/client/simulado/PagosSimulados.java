@@ -23,7 +23,16 @@ public class PagosSimulados implements ProveedorPagosGateway {
         if (solicitud.referencia() != null && solicitud.referencia().endsWith("9999")) {
             return ResultadoProveedor.rechazada("SIM_RECHAZO");
         }
-        return ResultadoProveedor.aprobada("SIM-" + solicitud.folio(), "SIM_00");
+        return ResultadoProveedor.aprobada("SIM-" + solicitud.folio(), autorizacion(solicitud.folio()), "SIM_00");
+    }
+
+    /**
+     * Número de autorización simulado de 8 dígitos, como el que devuelve Gestopago. Sale del folio para que
+     * la consulta de estado (conciliación) devuelva siempre el mismo número para el mismo pago.
+     */
+    static String autorizacion(String folio) {
+        long semilla = folio == null ? 0 : folio.hashCode();
+        return String.valueOf(10_000_000 + Math.floorMod(semilla * 2_654_435_761L, 90_000_000L));
     }
 
     @Override

@@ -129,6 +129,8 @@ class _ResultadoPagoScreenState extends State<ResultadoPagoScreen> {
                       InfoRow(label: 'Folio', value: p.folio, selectable: true),
                       if ((p.folioProveedor ?? '').isNotEmpty)
                         InfoRow(label: 'Folio del proveedor', value: p.folioProveedor!, selectable: true),
+                      if ((p.autorizacionProveedor ?? '').isNotEmpty)
+                        InfoRow(label: 'Autorización Gestopago', value: p.autorizacionProveedor!, selectable: true),
                       if ((p.tarjeta ?? '').isNotEmpty)
                         InfoRow(label: 'Forma de pago', value: 'Tarjeta de débito ${p.tarjeta} · contado'),
                       if ((p.autorizacion ?? '').isNotEmpty)

@@ -51,6 +51,13 @@ public class GestoPagoPagosGateway implements ProveedorPagosGateway {
     static final String PARAM_MONTO = "montoPago";
     static final String PARAM_FOLIO_CLIENTE = "idTransaccionCliente";
 
+    /**
+     * Nombres con los que Gestopago puede devolver el número de autorización del pago (se busca sin distinguir
+     * mayúsculas, en XML o JSON). Es el dato que se imprime en el comprobante como "Autorización Gestopago".
+     */
+    static final String[] CAMPOS_AUTORIZACION = {"NUM_AUTORIZACION", "numAutorizacion", "NO_AUTORIZACION",
+            "AUTORIZACION", "autorizacion", "codigoAutorizacion", "authorization", "authCode"};
+
     private static final Set<Integer> HTTP_NO_PROCESADO = Set.of(400, 401, 403, 404, 405, 415, 422, 429);
 
     private final GestoPagoTransaccionesClient client;
@@ -129,9 +136,9 @@ public class GestoPagoPagosGateway implements ProveedorPagosGateway {
         }
         String valor = codigo.get();
         if (codigosAprobada.contains(valor)) {
-            String folio = respuesta.buscar("TRANSACCION", "idTransaccion", "folio", "NUM_AUTORIZACION", "autorizacion")
-                    .orElse(null);
-            return ResultadoProveedor.aprobada(folio, valor);
+            String autorizacion = respuesta.buscar(CAMPOS_AUTORIZACION).orElse(null);
+            String folio = respuesta.buscar("TRANSACCION", "idTransaccion", "folio").orElse(autorizacion);
+            return ResultadoProveedor.aprobada(folio, autorizacion, valor);
         }
         if (codigosRechazo.contains(valor)) {
             return ResultadoProveedor.rechazada(valor);

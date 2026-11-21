@@ -120,7 +120,8 @@ falla por red, reintentar con la **misma** `Idempotency-Key` (no cobra dos veces
 * `POST /api/pagos/servicios/consultar` (Bearer) `{folio}` → detalle (404 si no es suyo).
 
 Cada pago trae: `folio`, `estatus`, `resultado`, `mensaje`, `servicio`, `producto`, `referencia` (enmascarada), `monto`,
-`folioProveedor`, `fechaOperacion`.
+`folioProveedor`, `autorizacionProveedor` (número de autorización que devuelve Gestopago; en modo simulado es un
+número de 8 dígitos), `fechaOperacion`. Con tarjeta también `tarjeta` y `autorizacion` (autorización bancaria).
 
 ## Variables de entorno nuevas (Render)
 

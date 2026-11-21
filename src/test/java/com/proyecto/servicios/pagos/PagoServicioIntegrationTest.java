@@ -141,7 +141,7 @@ class PagoServicioIntegrationTest {
     void setUp() {
         PETICIONES_SEND_TX.clear();
         AUTHORIZATION_RECIBIDOS.clear();
-        RESPUESTA_SEND_TX.set(new RespuestaSimulada(200, "<RESPONSE><CODIGO>0</CODIGO><TEXTO>Aprobada</TEXTO><TRANSACCION>GP-777</TRANSACCION></RESPONSE>", 0));
+        RESPUESTA_SEND_TX.set(new RespuestaSimulada(200, "<RESPONSE><CODIGO>0</CODIGO><TEXTO>Aprobada</TEXTO><TRANSACCION>GP-777</TRANSACCION><NUM_AUTORIZACION>48213907</NUM_AUTORIZACION></RESPONSE>", 0));
         cliente = crearCliente(new BigDecimal("1000.00"), true, "ACTIVA");
         numeroCuenta = cliente.getCuenta().getNumeroCuenta();
         token = "Bearer " + tokenClienteService.emitir(cliente.getId(), List.of(ClienteAutenticado.PERMISO_PAGAR_SERVICIOS), Duration.ofMinutes(5));
@@ -153,6 +153,7 @@ class PagoServicioIntegrationTest {
         String folio = folio(pagar(UUID.randomUUID().toString(), solicitud("1", "100", "5512345678", "100.00"), 201)
                 .andExpect(jsonPath("$.datos.estatus").value("APROBADA"))
                 .andExpect(jsonPath("$.datos.folioProveedor").value("GP-777"))
+                .andExpect(jsonPath("$.datos.autorizacionProveedor").value("48213907"))
                 .andExpect(jsonPath("$.datos.referencia").value("******5678"))
                 .andExpect(header().string("Idempotent-Replayed", "false"))
                 .andReturn());

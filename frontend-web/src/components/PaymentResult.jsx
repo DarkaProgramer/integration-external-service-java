@@ -26,7 +26,8 @@ export default function PaymentResult({ pago, children }) {
         filas={[
           ['Estado', <StatusBadge key="b" resultado={pago.resultado} />],
           ['Folio', <code key="f">{pago.folio}</code>],
-          ['Folio del proveedor', pago.folioProveedor && <code>{pago.folioProveedor}</code>],
+          ['Folio del proveedor', pago.folioProveedor && <code key="fp">{pago.folioProveedor}</code>],
+          ['Autorización Gestopago', pago.autorizacionProveedor && <code key="ag">{pago.autorizacionProveedor}</code>],
           ['Servicio', pago.servicio],
           ['Producto', pago.producto],
           ['Referencia', pago.referencia],
